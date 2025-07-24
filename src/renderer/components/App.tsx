@@ -3,6 +3,7 @@ import "../../../node_modules/98.css/dist/98.css";
 import "./css/98.extended.css";
 import "./css/Theme.css";
 
+import { useRef } from "react";
 import { Clippy } from "./Clippy";
 import { ChatProvider } from "../contexts/ChatContext";
 import { WindowPortal } from "./WindowPortal";
@@ -13,6 +14,8 @@ import { DebugProvider } from "../contexts/DebugContext";
 import { AnimationProvider } from "../contexts/AnimationContext";
 
 export function App() {
+  const chatWindowRef = useRef<HTMLDivElement>(null);
+
   return (
     <DebugProvider>
       <SharedStateProvider>
@@ -33,9 +36,11 @@ export function App() {
                   height: "100%",
                 }}
               >
-                <Clippy />
+                <Clippy chatWindowRef={chatWindowRef} />
                 <WindowPortal width={450} height={650}>
-                  <Bubble />
+                  <div ref={chatWindowRef}>
+                    <Bubble />
+                  </div>
                 </WindowPortal>
               </div>
             </BubbleViewProvider>

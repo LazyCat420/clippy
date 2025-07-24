@@ -11,7 +11,7 @@ import { DebugState } from "../debugState";
 import type { BubbleView } from "./contexts/BubbleViewContext";
 import { Data } from "electron";
 
-export type ClippyApi = {
+export interface ClippyApi {
   // Window
   toggleChatWindow: () => Promise<void>;
   minimizeChatWindow: () => Promise<void>;
@@ -58,7 +58,44 @@ export type ClippyApi = {
   offNewChat: () => void;
   // Clipboard
   clipboardWrite: (data: Data) => Promise<void>;
-};
+  
+  // Window position tracking for Clippy direction
+  getWindowPositions: () => Promise<Array<{
+    id: number;
+    title: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    isVisible: boolean;
+    isFocused: boolean;
+  }>>;
+  
+  getScreenInfo: () => Promise<{
+    displays: Array<{
+      id: number;
+      bounds: { x: number; y: number; width: number; height: number };
+      workArea: { x: number; y: number; width: number; height: number };
+      scaleFactor: number;
+    }>;
+    primaryDisplay: {
+      id: number;
+      bounds: { x: number; y: number; width: number; height: number };
+      workArea: { x: number; y: number; width: number; height: number };
+    };
+    cursorPoint: { x: number; y: number };
+  } | null>;
+  
+  calculateDirection: (clippyPos: { x: number; y: number }, chatPos: { x: number; y: number }) => Promise<{
+    direction: string | null;
+    distance: number;
+    angleDegrees?: number;
+    deltaX?: number;
+    deltaY?: number;
+    reason?: string;
+    error?: string;
+  }>;
+}
 
 declare global {
   interface Window {

@@ -279,27 +279,92 @@ class TTSService {
           pitch: 0.9,
           volume: 0.7
         }
+      },
+      technical: {
+        name: 'Technical Clippy',
+        settings: {
+          rate: 1.1,
+          pitch: 1.0,
+          volume: 0.9
+        }
+      },
+      creative: {
+        name: 'Creative Clippy',
+        settings: {
+          rate: 1.0,
+          pitch: 1.2,
+          volume: 0.8
+        }
+      },
+      alert: {
+        name: 'Alert Clippy',
+        settings: {
+          rate: 1.3,
+          pitch: 1.4,
+          volume: 1.0
+        }
+      },
+      friendly: {
+        name: 'Friendly Clippy',
+        settings: {
+          rate: 0.9,
+          pitch: 1.1,
+          volume: 0.8
+        }
       }
     };
   }
 
-  // Speak with animation context
+  // Enhanced speak with animation context
   public speakWithAnimation(text: string, animationTrigger?: string): Promise<void> {
-    // Choose voice preset based on animation context
+    // Choose voice preset based on animation context with expanded mapping
     let preset = 'modern';
     
     switch (animationTrigger) {
+      // Celebration and success
       case 'congratulate':
       case 'excited':
         preset = 'excited';
         break;
+        
+      // Explanations and teaching
       case 'explain':
       case 'thinking':
         preset = 'calm';
         break;
+        
+      // Greetings and friendly interactions
       case 'greeting':
-        preset = 'classic';
+      case 'wave':
+      case 'friendly':
+        preset = 'friendly';
         break;
+        
+      // Technical content
+      case 'getTechy':
+      case 'checkingSomething':
+      case 'processing':
+        preset = 'technical';
+        break;
+        
+      // Creative content
+      case 'getArtsy':
+      case 'getWizardy':
+        preset = 'creative';
+        break;
+        
+      // Alerts and warnings
+      case 'alert':
+      case 'getAttention':
+        preset = 'alert';
+        break;
+        
+      // Goodbyes
+      case 'goodbye':
+        preset = 'friendly';
+        break;
+        
+      // Default
       default:
         preset = 'modern';
     }
@@ -310,7 +375,7 @@ class TTSService {
       text,
       settings: voicePreset.settings,
       onStart: () => {
-        console.log(`TTS: Started speaking with ${preset} voice`);
+        console.log(`TTS: Started speaking with ${preset} voice (trigger: ${animationTrigger})`);
       },
       onEnd: () => {
         console.log('TTS: Finished speaking');

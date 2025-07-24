@@ -48,4 +48,9 @@ export const IpcMessages = {
 
   // Clipboard
   CLIPBOARD_WRITE: "clippy_clipboard_write",
+
+  // Window position tracking for Clippy direction
+  GET_WINDOW_POSITIONS: 'GET_WINDOW_POSITIONS',
+  GET_SCREEN_INFO: 'GET_SCREEN_INFO',
+  CALCULATE_DIRECTION: 'CALCULATE_DIRECTION',
 };

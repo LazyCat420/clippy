@@ -1,4 +1,4 @@
-import { clipboard, Data, ipcMain } from "electron";
+import { clipboard, Data, ipcMain, BrowserWindow, screen } from "electron";
 import {
   toggleChatWindow,
   maximizeChatWindow,
@@ -147,4 +147,112 @@ export function setupIpcListeners() {
   ipcMain.handle(IpcMessages.CLIPBOARD_WRITE, (_, data: Data) =>
     clipboard.write(data, "clipboard"),
   );
+
+  // Get window positions for Clippy direction calculation
+  ipcMain.handle('GET_WINDOW_POSITIONS', async () => {
+    try {
+      const allWindows = BrowserWindow.getAllWindows();
+      const windowPositions = allWindows.map(window => {
+        const bounds = window.getBounds();
+        const title = window.getTitle();
+        const id = window.id;
+        
+        return {
+          id,
+          title,
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+          isVisible: window.isVisible(),
+          isFocused: window.isFocused()
+        };
+      });
+      
+      console.log('Window positions:', windowPositions);
+      return windowPositions;
+    } catch (error) {
+      console.error('Error getting window positions:', error);
+      return [];
+    }
+  });
+
+  // Get screen information for coordinate calculations
+  ipcMain.handle('GET_SCREEN_INFO', async () => {
+    try {
+      const displays = screen.getAllDisplays();
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const cursorPoint = screen.getCursorScreenPoint();
+      
+      return {
+        displays: displays.map(display => ({
+          id: display.id,
+          bounds: display.bounds,
+          workArea: display.workArea,
+          scaleFactor: display.scaleFactor
+        })),
+        primaryDisplay: {
+          id: primaryDisplay.id,
+          bounds: primaryDisplay.bounds,
+          workArea: primaryDisplay.workArea
+        },
+        cursorPoint: {
+          x: cursorPoint.x,
+          y: cursorPoint.y
+        }
+      };
+    } catch (error) {
+      console.error('Error getting screen info:', error);
+      return null;
+    }
+  });
+
+  // Calculate direction between two points
+  ipcMain.handle('CALCULATE_DIRECTION', async (event, clippyPos, chatPos) => {
+    try {
+      const deltaX = chatPos.x - clippyPos.x;
+      const deltaY = chatPos.y - clippyPos.y;
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      
+      // If too far away, don't look
+      const maxDistance = 800; // pixels
+      if (distance > maxDistance) {
+        return { direction: null, distance, reason: 'too_far' };
+      }
+      
+      // Calculate angle in degrees (0 = right, 90 = up, 180 = left, 270 = down)
+      const angleDegrees = (Math.atan2(-deltaY, deltaX) * 180 / Math.PI + 360) % 360;
+      
+      // Convert angle to direction
+      let direction = null;
+      if (angleDegrees >= 337.5 || angleDegrees < 22.5) {
+        direction = "lookRight";
+      } else if (angleDegrees >= 22.5 && angleDegrees < 67.5) {
+        direction = "lookUpRight";
+      } else if (angleDegrees >= 67.5 && angleDegrees < 112.5) {
+        direction = "lookUp";
+      } else if (angleDegrees >= 112.5 && angleDegrees < 157.5) {
+        direction = "lookUpLeft";
+      } else if (angleDegrees >= 157.5 && angleDegrees < 202.5) {
+        direction = "lookLeft";
+      } else if (angleDegrees >= 202.5 && angleDegrees < 247.5) {
+        direction = "lookDownLeft";
+      } else if (angleDegrees >= 247.5 && angleDegrees < 292.5) {
+        direction = "lookDown";
+      } else {
+        direction = "lookDownRight";
+      }
+      
+      return {
+        direction,
+        distance,
+        angleDegrees,
+        deltaX,
+        deltaY
+      };
+    } catch (error) {
+      console.error('Error calculating direction:', error);
+      return { direction: null, error: error.message };
+    }
+  });
 }

@@ -106,6 +106,11 @@ const clippyApi: ClippyApi = {
   // Clipboard
   clipboardWrite: (data: Data) =>
     ipcRenderer.invoke(IpcMessages.CLIPBOARD_WRITE, data),
+
+  // Window position tracking for Clippy direction
+  getWindowPositions: () => ipcRenderer.invoke(IpcMessages.GET_WINDOW_POSITIONS),
+  getScreenInfo: () => ipcRenderer.invoke(IpcMessages.GET_SCREEN_INFO),
+  calculateDirection: (clippyPos: any, chatPos: any) => ipcRenderer.invoke(IpcMessages.CALCULATE_DIRECTION, clippyPos, chatPos),
 };
 
 contextBridge.exposeInMainWorld("clippy", clippyApi);
