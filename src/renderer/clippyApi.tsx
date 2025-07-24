@@ -44,6 +44,9 @@ export type ClippyApi = {
   // App
   getVersions: () => Promise<Versions>;
   checkForUpdates: () => Promise<void>;
+  // Grounding Search
+  performGroundingSearch: (prompt: string, apiKey: string, model: string) => Promise<any>;
+  validateApiKey: (apiKey: string) => Promise<boolean>;
   // Chats
   getChatRecords: () => Promise<Record<string, ChatRecord>>;
   getChatWithMessages: (chatId: string) => Promise<ChatWithMessages | null>;

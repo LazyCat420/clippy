@@ -78,6 +78,9 @@ class ModelManager {
         this.pollRendererModelState();
       });
     } else {
+      if (!model.url) {
+        throw new Error(`Model ${name} has no URL defined`);
+      }
       session.defaultSession.downloadURL(model.url);
     }
 
@@ -432,7 +435,13 @@ export function isModelOnDisk(model: ManagedModel | Model): boolean {
  * @returns {string}
  */
 export function getModelPath(model: Model): string {
-  return path.join(app.getPath("userData"), "models", getModelFileName(model));
+  // Ensure the models directory exists
+  const modelsDir = path.join(app.getPath("userData"), "models");
+  if (!fs.existsSync(modelsDir)) {
+    fs.mkdirSync(modelsDir, { recursive: true });
+  }
+  
+  return path.join(modelsDir, getModelFileName(model));
 }
 
 /**
@@ -442,5 +451,17 @@ export function getModelPath(model: Model): string {
  * @returns {string}
  */
 export function getModelFileName(model: Model): string {
-  return path.basename(new URL(model.url).pathname);
+  // Handle cases where URL might be undefined or invalid
+  if (!model.url) {
+    // For imported models without URLs, use the model name as filename
+    return `${model.name}.gguf`;
+  }
+  
+  try {
+    return path.basename(new URL(model.url).pathname);
+  } catch (error) {
+    // If URL parsing fails, use the model name as filename
+    getLogger().warn(`Failed to parse URL for model ${model.name}: ${model.url}`, error);
+    return `${model.name}.gguf`;
+  }
 }

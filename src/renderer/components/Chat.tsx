@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import { Message } from "./Message";
 import { ChatInput } from "./ChatInput";
+import { GroundingSearchResult } from "./GroundingSearchResult";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
-import { electronAi } from "../clippyApi";
+import { electronAi, clippyApi } from "../clippyApi";
+import { useSharedState } from "../contexts/SharedStateContext";
 
 export type ChatProps = {
   style?: React.CSSProperties;
@@ -13,14 +16,35 @@ export type ChatProps = {
 export function Chat({ style }: ChatProps) {
   const { setAnimationKey, setStatus, status, messages, addMessage } =
     useChat();
+  const { settings } = useSharedState();
   const [streamingMessageContent, setStreamingMessageContent] =
     useState<string>("");
   const [lastRequestUUID, setLastRequestUUID] = useState<string>(
     crypto.randomUUID(),
   );
+  const [isGroundingSearching, setIsGroundingSearching] = useState<boolean>(false);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup any ongoing requests
+      if (lastRequestUUID) {
+        try {
+          electronAi.abortRequest(lastRequestUUID);
+        } catch (error) {
+          console.error("Error aborting request on cleanup:", error);
+        }
+      }
+    };
+  }, [lastRequestUUID]);
 
   const handleAbortMessage = () => {
     electronAi.abortRequest(lastRequestUUID);
+  };
+
+  const handleToggleGrounding = () => {
+    const newValue = !settings.enableGroundingSearch;
+    clippyApi.setState("settings.enableGroundingSearch", newValue);
   };
 
   const handleSendMessage = async (message: string) => {
@@ -40,76 +64,209 @@ export function Chat({ style }: ChatProps) {
     setStatus("thinking");
 
     try {
-      const requestUUID = crypto.randomUUID();
-      setLastRequestUUID(requestUUID);
+      // Check if grounding search is enabled and we have a valid API key
+      const shouldUseGroundingSearch = 
+        settings.enableGroundingSearch && 
+        settings.googleApiKey && 
+        settings.googleApiKey.length > 0;
 
-      const response = await window.electronAi.promptStreaming(message, {
-        requestUUID,
-      });
-
-      let fullContent = "";
-      let filteredContent = "";
-      let hasSetAnimationKey = false;
-
-      for await (const chunk of response) {
-        if (fullContent === "") {
-          setStatus("responding");
-        }
-
-        if (!hasSetAnimationKey) {
-          const { text, animationKey } = filterMessageContent(
-            fullContent + chunk,
+      if (shouldUseGroundingSearch) {
+        // Use grounding search
+        setStatus("responding");
+        setIsGroundingSearching(true);
+        
+        try {
+          const groundingResponse = await clippyApi.performGroundingSearch(
+            message,
+            settings.googleApiKey,
+            settings.groundingModel || "gemini-2.0-flash"
           );
 
-          filteredContent = text;
-          fullContent = fullContent + chunk;
-
-          if (animationKey) {
-            setAnimationKey(animationKey);
-            hasSetAnimationKey = true;
+          // Validate response
+          if (!groundingResponse || !groundingResponse.content) {
+            throw new Error("Invalid response from grounding search");
           }
-        } else {
-          filteredContent += chunk;
+
+          // Optimized streaming simulation - faster and more stable
+          const content = groundingResponse.content;
+          const chunks = content.match(/.{1,50}/g) || [content]; // Split into 50-char chunks for better performance
+          let displayedContent = '';
+          
+          for (let i = 0; i < chunks.length; i++) {
+            displayedContent += chunks[i];
+            setStreamingMessageContent(displayedContent);
+            // Faster typing simulation with fewer updates
+            await new Promise(resolve => setTimeout(resolve, 15));
+          }
+
+          // Create message with grounding search result
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            content: content,
+            sender: "clippy",
+            createdAt: Date.now(),
+            children: (
+              <ErrorBoundary>
+                <GroundingSearchResult
+                  content={groundingResponse.content}
+                  groundingMetadata={groundingResponse.groundingMetadata}
+                  renderedContent={groundingResponse.renderedContent}
+                />
+              </ErrorBoundary>
+            ),
+          };
+
+          addMessage(assistantMessage);
+        } catch (groundingError) {
+          setIsGroundingSearching(false);
+          console.error("Grounding search failed, falling back to local model:", groundingError);
+          
+          // Show error message to user
+          const errorMessage: Message = {
+            id: crypto.randomUUID(),
+            content: `🌐 Grounding search failed: ${groundingError instanceof Error ? groundingError.message : 'Unknown error'}. Falling back to local model...`,
+            sender: "clippy",
+            createdAt: Date.now(),
+          };
+          addMessage(errorMessage);
+          
+          // Fallback to local model if grounding search fails
+          const requestUUID = crypto.randomUUID();
+          setLastRequestUUID(requestUUID);
+
+          const response = await window.electronAi.promptStreaming(message, {
+            requestUUID,
+          });
+
+          let fullContent = "";
+          let filteredContent = "";
+          let hasSetAnimationKey = false;
+
+          for await (const chunk of response) {
+            if (fullContent === "") {
+              setStatus("responding");
+            }
+
+            if (!hasSetAnimationKey) {
+              const { text, animationKey } = filterMessageContent(
+                fullContent + chunk,
+              );
+
+              filteredContent = text;
+              fullContent = fullContent + chunk;
+
+              if (animationKey) {
+                setAnimationKey(animationKey);
+                hasSetAnimationKey = true;
+              }
+            } else {
+              filteredContent += chunk;
+            }
+
+            setStreamingMessageContent(filteredContent);
+          }
+
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            content: filteredContent,
+            sender: "clippy",
+            createdAt: Date.now(),
+          };
+
+          addMessage(assistantMessage);
+        }
+      } else {
+        // Use local model
+        const requestUUID = crypto.randomUUID();
+        setLastRequestUUID(requestUUID);
+
+        const response = await window.electronAi.promptStreaming(message, {
+          requestUUID,
+        });
+
+        let fullContent = "";
+        let filteredContent = "";
+        let hasSetAnimationKey = false;
+
+        for await (const chunk of response) {
+          if (fullContent === "") {
+            setStatus("responding");
+          }
+
+          if (!hasSetAnimationKey) {
+            const { text, animationKey } = filterMessageContent(
+              fullContent + chunk,
+            );
+
+            filteredContent = text;
+            fullContent = fullContent + chunk;
+
+            if (animationKey) {
+              setAnimationKey(animationKey);
+              hasSetAnimationKey = true;
+            }
+          } else {
+            filteredContent += chunk;
+          }
+
+          setStreamingMessageContent(filteredContent);
         }
 
-        setStreamingMessageContent(filteredContent);
-      }
+        // Once streaming is complete, add the full message to the messages array
+        // and clear the streaming message
+        const assistantMessage: Message = {
+          id: crypto.randomUUID(),
+          content: filteredContent,
+          sender: "clippy",
+          createdAt: Date.now(),
+        };
 
-      // Once streaming is complete, add the full message to the messages array
-      // and clear the streaming message
-      const assistantMessage: Message = {
+        addMessage(assistantMessage);
+      }
+    } catch (error) {
+      console.error(error);
+      
+      // Add error message
+      const errorMessage: Message = {
         id: crypto.randomUUID(),
-        content: filteredContent,
+        content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
         sender: "clippy",
         createdAt: Date.now(),
       };
-
-      addMessage(assistantMessage);
-    } catch (error) {
-      console.error(error);
+      
+      addMessage(errorMessage);
     } finally {
       setStreamingMessageContent("");
       setStatus("idle");
+      setIsGroundingSearching(false);
     }
   };
 
   return (
-    <div style={style} className="chat-container">
-      {messages.map((message) => (
-        <Message key={message.id} message={message} />
-      ))}
-      {status === "responding" && (
-        <Message
-          message={{
-            id: "streaming",
-            content: streamingMessageContent,
-            sender: "clippy",
-            createdAt: Date.now(),
-          }}
+    <ErrorBoundary>
+      <div style={style} className="chat-container">
+        {messages.map((message) => (
+          <Message key={message.id} message={message} />
+        ))}
+        {status === "responding" && (
+          <Message
+            message={{
+              id: "streaming",
+              content: isGroundingSearching 
+                ? `${streamingMessageContent}${streamingMessageContent ? '' : '🌐 Searching the web...'}`
+                : streamingMessageContent,
+              sender: "clippy",
+              createdAt: Date.now(),
+            }}
+          />
+        )}
+        <ChatInput 
+          onSend={handleSendMessage} 
+          onAbort={handleAbortMessage} 
+          onToggleGrounding={handleToggleGrounding}
         />
-      )}
-      <ChatInput onSend={handleSendMessage} onAbort={handleAbortMessage} />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 

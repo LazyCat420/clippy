@@ -96,6 +96,12 @@ const clippyApi: ClippyApi = {
   getVersions: () => ipcRenderer.invoke(IpcMessages.APP_GET_VERSIONS),
   checkForUpdates: () => ipcRenderer.invoke(IpcMessages.APP_CHECK_FOR_UPDATES),
 
+  // Grounding Search
+  performGroundingSearch: (prompt: string, apiKey: string, model: string) =>
+    ipcRenderer.invoke(IpcMessages.GROUNDING_SEARCH, prompt, apiKey, model),
+  validateApiKey: (apiKey: string) =>
+    ipcRenderer.invoke(IpcMessages.GROUNDING_VALIDATE_API_KEY, apiKey),
+
   // Clipboard
   clipboardWrite: (data: Data) =>
     ipcRenderer.invoke(IpcMessages.CLIPBOARD_WRITE, data),

@@ -90,14 +90,4 @@ export const BUILT_IN_MODELS: Model[] = [
     homepage:
       "https://ai.meta.com/blog/llama-3-2-connect-2024-vision-edge-mobile-devices/",
   },
-  {
-    name: "Llama 3.2 (3B Instruct)",
-    company: "Meta",
-    size: 2020,
-    url: "https://huggingface.co/unsloth/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    description:
-      "The Llama 3.2 collection of multilingual large language models (LLMs) is a collection of pretrained and instruction-tuned generative models in 1B and 3B sizes (text in/text out). The Llama 3.2 instruction-tuned text only models are optimized for multilingual dialogue use cases, including agentic retrieval and summarization tasks. They outperform many of the available open source and closed chat models on common industry benchmarks.",
-    homepage:
-      "https://ai.meta.com/blog/llama-3-2-connect-2024-vision-edge-mobile-devices/",
-  },
 ];

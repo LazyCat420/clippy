@@ -14,6 +14,7 @@ export class StateManager {
       ...EMPTY_SHARED_STATE,
       models: getModelManager().getInitialRendererModelState(),
     },
+    encryptionKey: 'clippy-secure-key-2024', // Encrypt sensitive data
   });
 
   constructor() {
@@ -125,18 +126,36 @@ export class StateManager {
     // Update the menu, which contains state
     setupAppMenu();
 
-    // Log the settings change by getting a deep diff
-    const diff = Object.keys(newValue).reduce(
+    // Log the settings change by getting a deep diff (excluding sensitive data)
+    const sensitiveKeys = ['googleApiKey']; // Add other sensitive keys here if needed
+    
+    // Deep clone and redact sensitive data
+    const safeDiff = JSON.parse(JSON.stringify(newValue));
+    
+    // Redact top-level sensitive keys
+    sensitiveKeys.forEach(key => {
+      if (safeDiff[key] !== undefined) {
+        safeDiff[key] = '[REDACTED]';
+      }
+    });
+    
+    // Redact nested sensitive keys (like internetSearch.googleApiKey)
+    if (safeDiff.internetSearch && safeDiff.internetSearch.googleApiKey) {
+      safeDiff.internetSearch.googleApiKey = '[REDACTED]';
+    }
+    
+    // Only log the differences
+    const diff = Object.keys(safeDiff).reduce(
       (acc, key) => {
         const typedKey = key as keyof SettingsState;
         if (newValue[typedKey] !== oldValue[typedKey]) {
-          acc[typedKey] = newValue[typedKey];
+          acc[typedKey] = safeDiff[typedKey];
         }
-
         return acc;
       },
       {} as Record<string, unknown>,
     );
+    
     getLogger().info("Settings changed", diff);
   }
 

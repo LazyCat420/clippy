@@ -15,6 +15,7 @@ import { ChatRecord, MessageRecord } from "../../types/interfaces";
 import { useDebugState } from "./DebugContext";
 import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
 import { ErrorLoadModelMessageContent } from "../components/ErrorLoadModelMessageContent";
+import { GroundingSearchResult } from "../components/GroundingSearchResult";
 
 import type {
   LanguageModelPrompt,

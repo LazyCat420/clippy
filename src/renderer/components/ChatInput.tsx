@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useChat } from "../contexts/ChatContext";
+import { useSharedState } from "../contexts/SharedStateContext";
 export type ChatInputProps = {
   onSend: (message: string) => void;
   onAbort: () => void;
+  onToggleGrounding?: () => void;
 };
 
-export function ChatInput({ onSend, onAbort }: ChatInputProps) {
+export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps) {
   const { status } = useChat();
+  const { settings } = useSharedState();
   const [message, setMessage] = useState("");
   const { isModelLoaded } = useChat();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -59,7 +62,9 @@ export function ChatInput({ onSend, onAbort }: ChatInputProps) {
   };
 
   const placeholder = isModelLoaded
-    ? "Type a message, press Enter to send..."
+    ? settings.enableGroundingSearch && settings.googleApiKey
+      ? "Type a message, press Enter to send... (🌐 Grounding Search Enabled)"
+      : "Type a message, press Enter to send..."
     : "This is your chat input, we're just waiting for a model to load...";
 
   return (
@@ -80,6 +85,30 @@ export function ChatInput({ onSend, onAbort }: ChatInputProps) {
           width: 80,
         }}
       />
+      
+      {/* Grounding Search Toggle Button */}
+      {isModelLoaded && onToggleGrounding && (
+        <button
+          onClick={onToggleGrounding}
+          style={{
+            marginRight: "8px",
+            padding: "6px 12px",
+            fontSize: "12px",
+            backgroundColor: settings.enableGroundingSearch && settings.googleApiKey ? "#4CAF50" : "#ccc",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            minWidth: "60px",
+          }}
+          title={settings.enableGroundingSearch && settings.googleApiKey 
+            ? `Grounding Search ON (${settings.groundingModel || "gemini-2.0-flash"})` 
+            : "Grounding Search OFF"}
+        >
+          🌐 {settings.enableGroundingSearch && settings.googleApiKey ? "ON" : "OFF"}
+        </button>
+      )}
+      
       <button
         disabled={!isModelLoaded}
         style={buttonStyle}

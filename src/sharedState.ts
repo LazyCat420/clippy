@@ -18,6 +18,10 @@ export interface SettingsState {
   defaultFont: DefaultFont;
   defaultFontSize: number;
   disableAutoUpdate?: boolean;
+  // Google Gemini Grounding Search settings
+  googleApiKey?: string;
+  enableGroundingSearch?: boolean;
+  groundingModel?: string;
 }
 
 export interface SharedState {
@@ -48,6 +52,9 @@ export const DEFAULT_SETTINGS: SettingsState = {
   defaultFont: "Tahoma",
   defaultFontSize: 12,
   disableAutoUpdate: false,
+  // Google Gemini Grounding Search defaults
+  enableGroundingSearch: false,
+  groundingModel: "gemini-2.0-flash",
 };
 
 export const EMPTY_SHARED_STATE: SharedState = {

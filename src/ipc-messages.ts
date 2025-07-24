@@ -41,6 +41,10 @@ export const IpcMessages = {
   CHAT_DELETE_ALL_CHATS: "clippy_chat_delete_all_chats",
   CHAT_NEW_CHAT: "clippy_chat_new_chat",
 
+  // Grounding Search
+  GROUNDING_SEARCH: "clippy_grounding_search",
+  GROUNDING_VALIDATE_API_KEY: "clippy_grounding_validate_api_key",
+
   // Clipboard
   CLIPBOARD_WRITE: "clippy_clipboard_write",
 };

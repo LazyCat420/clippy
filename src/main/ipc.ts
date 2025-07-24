@@ -14,6 +14,8 @@ import { checkForUpdates } from "./update";
 import { getVersions } from "./helpers/getVersions";
 import { getClippyDebugInfo } from "./debug-clippy";
 import { getDebugManager } from "./debug";
+import { getLogger } from "./logger";
+import { GroundingSearchService } from "./groundingSearch";
 
 export function setupIpcListeners() {
   // Window
@@ -49,7 +51,25 @@ export function setupIpcListeners() {
   );
   ipcMain.handle(
     IpcMessages.STATE_GET_FULL,
-    () => getStateManager().store.store,
+    () => {
+      const state = getStateManager().store.store;
+      // Create a safe copy without sensitive data
+      const safeState = {
+        ...state,
+        settings: {
+          ...state.settings,
+          googleApiKey: state.settings.googleApiKey ? '[REDACTED]' : undefined,
+          // Also redact any nested API keys that might exist
+          ...(state.settings as any).internetSearch && {
+            internetSearch: {
+              ...(state.settings as any).internetSearch,
+              googleApiKey: (state.settings as any).internetSearch?.googleApiKey ? '[REDACTED]' : undefined,
+            },
+          },
+        },
+      };
+      return safeState;
+    },
   );
   ipcMain.handle(IpcMessages.STATE_SET, (_, key: string, value: any) =>
     getStateManager().store.set(key, value),
@@ -95,6 +115,27 @@ export function setupIpcListeners() {
   ipcMain.handle(IpcMessages.CHAT_DELETE_ALL_CHATS, () =>
     getChatManager().deleteAllChats(),
   );
+
+  // Grounding Search
+  ipcMain.handle(
+    IpcMessages.GROUNDING_SEARCH,
+    async (_, prompt: string, apiKey: string, model: string) => {
+      try {
+        return await GroundingSearchService.performGroundingSearch({
+          prompt,
+          apiKey,
+          model,
+        });
+      } catch (error) {
+        getLogger().error("Grounding search error:", error);
+        throw error;
+      }
+    },
+  );
+
+  ipcMain.handle(IpcMessages.GROUNDING_VALIDATE_API_KEY, (_, apiKey: string) => {
+    return GroundingSearchService.validateApiKey(apiKey);
+  });
 
   // Clipboard
   ipcMain.handle(IpcMessages.CLIPBOARD_WRITE, (_, data: Data) =>
