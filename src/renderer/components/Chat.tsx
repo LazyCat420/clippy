@@ -24,6 +24,13 @@ export function Chat({ style }: ChatProps) {
 
   // Create enhanced prompt with animation selection instructions and object awareness
   const createEnhancedPrompt = useCallback(async (userMessage: string): Promise<string> => {
+    // Get conversation history for context
+    const conversationHistory = messages
+      .filter(msg => msg.sender === "user" || msg.sender === "clippy")
+      .slice(-6) // Include last 6 messages for context
+      .map(msg => `${msg.sender === "user" ? "User" : "Assistant"}: ${msg.content}`)
+      .join("\n");
+
     // Get current window positions for object awareness
     let positionInfo = "";
     try {
@@ -75,6 +82,11 @@ When users ask about the location of objects, I can provide accurate spatial inf
     }
 
     return `You are Clippy, a helpful AI assistant with object awareness. When responding to the user, choose the most appropriate animation that matches the emotional tone and context of your response.
+
+CONVERSATION HISTORY:
+${conversationHistory}
+
+CURRENT USER MESSAGE: ${userMessage}
 
 AVAILABLE ANIMATIONS (23 total):
 thinking, congratulate, explain, getAttention, processing, writing, searching, greeting, goodbye, alert, checkingSomething, gestureUp, gestureDown, gestureLeft, gestureRight, getArtsy, getTechy, getWizardy, hearing, hide, show, print, save, sendMail, wave, emptyTrash, lookDown, lookDownLeft, lookDownRight, lookLeft, lookRight, lookUp, lookUpLeft, lookUpRight, default
@@ -158,6 +170,8 @@ EXAMPLES:
 • User: "Where is the chatbox?" → "[lookRight] The chat window is to my right, about 300 pixels away from my current position."
 
 User message: ${userMessage}
+
+IMPORTANT: Consider the conversation history above when responding. Provide contextually relevant answers that build upon previous messages in the conversation.
 
 Choose the most appropriate animation and respond:`;
   }, []);
@@ -352,10 +366,33 @@ Choose the most appropriate animation and respond:`;
         setIsGroundingSearching(true);
         
         try {
-          // Use enhanced prompt with animation selection for grounding search
-          const enhancedPrompt = await createEnhancedPrompt(message);
+          // Create a specific prompt for grounding search that requests a summary with conversation context
+          const conversationHistory = messages
+            .filter(msg => msg.sender === "user" || msg.sender === "clippy")
+            .slice(-6) // Include last 6 messages for context
+            .map(msg => `${msg.sender === "user" ? "User" : "Assistant"}: ${msg.content}`)
+            .join("\n");
+
+          const groundingPrompt = `Conversation History:
+${conversationHistory}
+
+Current User Question: "${message}"
+
+Please search the web for information about the user's current question, taking into account the conversation context above.
+
+Based on the search results, provide a comprehensive and helpful summary that directly answers the user's question. Consider the conversation history to provide contextually relevant information.
+
+Make sure to:
+1. Provide a clear, direct answer to the current question
+2. Consider the conversation context when relevant
+3. Include specific information from the search results
+4. Cite sources when appropriate
+5. Be helpful and informative
+
+User's current question: ${message}`;
+
           const groundingResponse = await clippyApi.performGroundingSearch(
-            enhancedPrompt,
+            groundingPrompt,
             actualApiKey,
             settings.groundingModel || "gemini-2.0-flash"
           );
