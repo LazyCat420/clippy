@@ -43,6 +43,81 @@ export const SettingsAudio: React.FC = () => {
     }
   };
 
+  const testTTSWithSpecialChars = async () => {
+    if (isTTSSupported) {
+      try {
+        await ttsService.speak({
+          text: "Testing special characters: • Bullet points • Asterisks * Underscores _ And other symbols!",
+          settings: {
+            rate: settings.ttsRate,
+            pitch: settings.ttsPitch,
+            volume: settings.ttsVolume,
+            voice: settings.ttsVoice
+          }
+        });
+      } catch (error) {
+        console.error("TTS test failed:", error);
+      }
+    }
+  };
+
+  const stopTTS = () => {
+    if (isTTSSupported) {
+      ttsService.stopAll();
+    }
+  };
+
+  const testTTSQueue = async () => {
+    if (isTTSSupported) {
+      try {
+        // Queue multiple TTS requests to test the queue system
+        console.log("Testing TTS queue with multiple requests...");
+        
+        const promises = [
+          ttsService.speak({
+            text: "First message in the queue.",
+            settings: {
+              rate: settings.ttsRate,
+              pitch: settings.ttsPitch,
+              volume: settings.ttsVolume,
+              voice: settings.ttsVoice
+            }
+          }),
+          ttsService.speak({
+            text: "Second message in the queue.",
+            settings: {
+              rate: settings.ttsRate,
+              pitch: settings.ttsPitch,
+              volume: settings.ttsVolume,
+              voice: settings.ttsVoice
+            }
+          }),
+          ttsService.speak({
+            text: "Third message in the queue.",
+            settings: {
+              rate: settings.ttsRate,
+              pitch: settings.ttsPitch,
+              volume: settings.ttsVolume,
+              voice: settings.ttsVoice
+            }
+          })
+        ];
+
+        // Start all requests (they will be queued)
+        promises.forEach((promise, index) => {
+          promise.catch(error => {
+            console.error(`TTS request ${index + 1} failed:`, error);
+          });
+        });
+
+        alert("✅ Queued 3 TTS messages! Try stopping them with the Stop button or Escape key.");
+      } catch (error) {
+        console.error("TTS queue test failed:", error);
+        alert("❌ TTS queue test failed");
+      }
+    }
+  };
+
   const testSoundEffect = async () => {
     if (isAudioSupported) {
       try {
@@ -145,6 +220,15 @@ export const SettingsAudio: React.FC = () => {
             <button onClick={testTTS} style={{ marginTop: "8px" }}>
               Test TTS
             </button>
+            <button onClick={testTTSWithSpecialChars} style={{ marginTop: "8px", marginLeft: "8px" }}>
+              Test TTS with Special Chars
+            </button>
+            <button onClick={testTTSQueue} style={{ marginTop: "8px", marginLeft: "8px" }}>
+              Test TTS Queue
+            </button>
+            <button onClick={stopTTS} style={{ marginTop: "8px", marginLeft: "8px" }}>
+              Stop TTS
+            </button>
           </>
         )}
       </div>
@@ -233,13 +317,15 @@ export const SettingsAudio: React.FC = () => {
       )}
 
       {/* Information Section */}
-      <div style={{ fontSize: "12px", color: "#666", borderTop: "1px solid #ccc", paddingTop: "16px" }}>
+      <div style={{ marginBottom: "20px" }}>
         <h4>Information</h4>
         <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
           <li>Text-to-Speech uses your system's built-in voices</li>
           <li>Sound effects are generated using Web Audio API</li>
           <li>Animations will automatically trigger appropriate sounds</li>
           <li>You can test both TTS and sound effects using the buttons above</li>
+          <li><strong>TTS Controls:</strong> Press <kbd>Escape</kbd> or click the "Stop" button to stop TTS while speaking</li>
+          <li>Special characters like bullet points (•) and asterisks (*) are automatically cleaned up for better speech</li>
         </ul>
       </div>
     </div>

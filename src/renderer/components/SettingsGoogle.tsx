@@ -1,12 +1,18 @@
 import { clippyApi } from "../clippyApi";
 import { useSharedState } from "../contexts/SharedStateContext";
 import { Checkbox } from "./Checkbox";
+import { useState } from "react";
 
 export const SettingsGoogle: React.FC = () => {
   const { settings } = useSharedState();
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string>("");
 
-  const handleApiKeyChange = (value: string) => {
-    clippyApi.setState("settings.googleApiKey", value);
+  const handleApiKeyChange = async (value: string) => {
+    setIsSaving(true);
+    await clippyApi.setState("settings.googleApiKey", value);
+    setIsSaving(false);
+    setLastSaved(new Date().toLocaleTimeString());
   };
 
   const handleEnableGroundingSearch = (checked: boolean) => {
@@ -15,6 +21,42 @@ export const SettingsGoogle: React.FC = () => {
 
   const handleModelChange = (value: string) => {
     clippyApi.setState("settings.groundingModel", value);
+  };
+
+  const testApiKey = async () => {
+    try {
+      const apiKey = await clippyApi.getGoogleApiKey();
+      if (apiKey) {
+        const isValid = await clippyApi.validateApiKey(apiKey);
+        if (isValid) {
+          alert("✅ API key is valid and working!");
+        } else {
+          alert("❌ API key appears to be invalid. Please check your key.");
+        }
+      } else {
+        alert("❌ No API key found. Please enter your Google API key.");
+      }
+    } catch (error) {
+      alert(`❌ Error testing API key: ${error}`);
+    }
+  };
+
+  const debugApiKey = async () => {
+    try {
+      const apiKey = await clippyApi.getGoogleApiKey();
+      const hasApiKey = apiKey && apiKey.length > 0;
+      const keyLength = apiKey ? apiKey.length : 0;
+      const keyStart = apiKey ? apiKey.substring(0, 4) : "N/A";
+      
+      alert(`🔍 API Key Debug Info:
+• Has API Key: ${hasApiKey ? "Yes" : "No"}
+• Key Length: ${keyLength} characters
+• Key Starts With: ${keyStart}...
+• Enable Grounding Search: ${settings.enableGroundingSearch ? "Yes" : "No"}
+• Grounding Model: ${settings.groundingModel || "Not set"}`);
+    } catch (error) {
+      alert(`❌ Error getting debug info: ${error}`);
+    }
   };
 
   return (
@@ -67,6 +109,47 @@ export const SettingsGoogle: React.FC = () => {
               <p style={{ fontSize: "11px", color: "#888", marginTop: "3px", fontStyle: "italic" }}>
                 🔒 Your API key is encrypted and stored locally. It's never logged or shared.
               </p>
+              {isSaving && (
+                <p style={{ fontSize: "11px", color: "#0066cc", marginTop: "3px" }}>
+                  💾 Saving...
+                </p>
+              )}
+              {lastSaved && (
+                <p style={{ fontSize: "11px", color: "#4CAF50", marginTop: "3px" }}>
+                  ✅ Saved at {lastSaved}
+                </p>
+              )}
+              <button 
+                onClick={testApiKey}
+                style={{ 
+                  marginTop: "8px", 
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  backgroundColor: "#0066cc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
+                Test API Key
+              </button>
+              <button 
+                onClick={debugApiKey}
+                style={{ 
+                  marginTop: "8px", 
+                  marginLeft: "8px",
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  backgroundColor: "#666",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+              >
+                Debug Info
+              </button>
             </div>
 
             <div style={{ marginTop: "15px" }}>

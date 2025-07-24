@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import { Message } from "./Message";
 import { ChatInput } from "./ChatInput";
@@ -26,6 +26,26 @@ export function Chat({ style }: ChatProps) {
     crypto.randomUUID(),
   );
   const [isGroundingSearching, setIsGroundingSearching] = useState<boolean>(false);
+  const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
+  const [ttsQueueLength, setTtsQueueLength] = useState(0);
+
+  // Check TTS speaking status periodically
+  useEffect(() => {
+    const checkTTSSpeaking = () => {
+      setIsTTSSpeaking(ttsService.isSpeaking());
+      setTtsQueueLength(ttsService.getQueueLength());
+    };
+
+    // Check immediately
+    checkTTSSpeaking();
+
+    // Check every 100ms when TTS is enabled
+    const interval = settings.enableTTS ? setInterval(checkTTSSpeaking, 100) : null;
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [settings.enableTTS]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -42,7 +62,19 @@ export function Chat({ style }: ChatProps) {
   }, [lastRequestUUID]);
 
   const handleAbortMessage = () => {
-    electronAi.abortRequest(lastRequestUUID);
+    // Stop TTS if it's speaking
+    if (ttsService.isSpeaking() || ttsService.getQueueLength() > 0) {
+      ttsService.stopAll();
+    }
+    
+    // Abort AI request if there's one active
+    if (lastRequestUUID) {
+      window.electronAi.abortRequest(lastRequestUUID);
+    }
+    
+    setStatus("idle");
+    setStreamingMessageContent("");
+    setIsGroundingSearching(false);
   };
 
   const handleToggleGrounding = () => {
@@ -70,11 +102,14 @@ export function Chat({ style }: ChatProps) {
     triggerAnimationForContent(message);
 
     try {
+      // Get the actual API key (not redacted)
+      const actualApiKey = await clippyApi.getGoogleApiKey();
+      
       // Check if grounding search is enabled and we have a valid API key
       const shouldUseGroundingSearch = 
         settings.enableGroundingSearch && 
-        settings.googleApiKey && 
-        settings.googleApiKey.length > 0;
+        actualApiKey && 
+        actualApiKey.length > 0;
 
       if (shouldUseGroundingSearch) {
         // Use grounding search
@@ -84,7 +119,7 @@ export function Chat({ style }: ChatProps) {
         try {
           const groundingResponse = await clippyApi.performGroundingSearch(
             message,
-            settings.googleApiKey,
+            actualApiKey,
             settings.groundingModel || "gemini-2.0-flash"
           );
 
@@ -288,6 +323,29 @@ export function Chat({ style }: ChatProps) {
               createdAt: Date.now(),
             }}
           />
+        )}
+        {/* TTS Speaking Indicator */}
+        {settings.enableTTS && (isTTSSpeaking || ttsQueueLength > 0) && (
+          <div style={{
+            padding: "8px 12px",
+            margin: "8px 0",
+            backgroundColor: "#e3f2fd",
+            border: "1px solid #2196f3",
+            borderRadius: "4px",
+            fontSize: "12px",
+            color: "#1976d2",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            <span>🔊</span>
+            <span>
+              {isTTSSpeaking 
+                ? `Clippy is speaking${ttsQueueLength > 0 ? ` (${ttsQueueLength} more in queue)` : ''}... Press Escape to stop`
+                : `${ttsQueueLength} message${ttsQueueLength > 1 ? 's' : ''} waiting to be spoken... Press Escape to stop`
+              }
+            </span>
+          </div>
         )}
         <ChatInput 
           onSend={handleSendMessage} 

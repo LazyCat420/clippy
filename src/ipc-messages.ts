@@ -20,6 +20,7 @@ export const IpcMessages = {
   STATE_GET: "clippy_state_get",
   STATE_SET: "clippy_state_set",
   STATE_OPEN_IN_EDITOR: "clippy_state_open_in_editor",
+  STATE_GET_GOOGLE_API_KEY: "clippy_state_get_google_api_key",
 
   // Debug messages
   DEBUG_STATE_GET_FULL: "clippy_debug_state_get_full",

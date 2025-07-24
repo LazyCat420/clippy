@@ -45,6 +45,7 @@ const clippyApi: ClippyApi = {
   setState: (key: string, value: any) =>
     ipcRenderer.invoke(IpcMessages.STATE_SET, key, value),
   openStateInEditor: () => ipcRenderer.invoke(IpcMessages.STATE_OPEN_IN_EDITOR),
+  getGoogleApiKey: () => ipcRenderer.invoke(IpcMessages.STATE_GET_GOOGLE_API_KEY),
   onStateChanged: (callback: (state: SharedState) => void) => {
     ipcRenderer.on(IpcMessages.STATE_CHANGED, (_event, state: SharedState) =>
       callback(state),

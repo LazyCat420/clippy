@@ -11,6 +11,7 @@ export interface TTSOptions {
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (error: Error) => void;
+  onStop?: () => void;
 }
 
 class TTSService {
@@ -18,6 +19,16 @@ class TTSService {
   private voices: SpeechSynthesisVoice[] = [];
   private isSupported: boolean;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
+  private isStopped: boolean = false;
+  private currentPromise: Promise<void> | null = null;
+  private currentResolve: (() => void) | null = null;
+  private currentReject: ((error: Error) => void) | null = null;
+  private ttsQueue: Array<{
+    options: TTSOptions;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  }> = [];
+  private isProcessingQueue: boolean = false;
 
   constructor() {
     this.speechSynthesis = window.speechSynthesis;
@@ -34,6 +45,27 @@ class TTSService {
 
   private loadVoices() {
     this.voices = this.speechSynthesis.getVoices();
+  }
+
+  /**
+   * Format text for TTS by removing or replacing problematic characters
+   */
+  private formatTextForTTS(text: string): string {
+    return text
+      // Replace bullet points and similar characters with periods
+      .replace(/[•·‣⁃]/g, '. ')
+      // Replace asterisks with spaces (they get pronounced as "asterisk")
+      .replace(/\*/g, ' ')
+      // Replace underscores with spaces
+      .replace(/_/g, ' ')
+      // Replace multiple spaces with single space
+      .replace(/\s+/g, ' ')
+      // Replace multiple periods with single period
+      .replace(/\.+/g, '.')
+      // Clean up any remaining special characters that might cause issues
+      .replace(/[^\w\s.,!?;:()\-'"]/g, ' ')
+      // Trim whitespace
+      .trim();
   }
 
   public getVoices(): SpeechSynthesisVoice[] {
@@ -61,11 +93,55 @@ class TTSService {
         return;
       }
 
-      // Cancel any current speech
-      this.stop();
+      // Add to queue
+      this.ttsQueue.push({ options, resolve, reject });
+      
+      // Process queue if not already processing
+      if (!this.isProcessingQueue) {
+        this.processQueue();
+      }
+    });
+  }
 
-      const utterance = new SpeechSynthesisUtterance(options.text);
+  private async processQueue() {
+    if (this.isProcessingQueue || this.ttsQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    while (this.ttsQueue.length > 0) {
+      const { options, resolve, reject } = this.ttsQueue.shift()!;
+      
+      try {
+        await this.startNewUtterance(options);
+        resolve();
+      } catch (error) {
+        reject(error as Error);
+      }
+    }
+
+    this.isProcessingQueue = false;
+  }
+
+  private startNewUtterance(options: TTSOptions): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Format text for TTS
+      const formattedText = this.formatTextForTTS(options.text);
+      
+      // Don't speak if text is empty after formatting
+      if (!formattedText.trim()) {
+        resolve();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(formattedText);
       this.currentUtterance = utterance;
+      this.isStopped = false;
+      this.currentPromise = new Promise<void>((innerResolve, innerReject) => {
+        this.currentResolve = innerResolve;
+        this.currentReject = innerReject;
+      });
 
       // Apply voice settings
       const settings = options.settings || {};
@@ -87,13 +163,17 @@ class TTSService {
       };
 
       utterance.onend = () => {
-        this.currentUtterance = null;
-        options.onEnd?.();
-        resolve();
+        this.cleanup();
+        if (!this.isStopped) {
+          options.onEnd?.();
+          resolve();
+        } else {
+          resolve(); // Resolve even if stopped to continue queue
+        }
       };
 
       utterance.onerror = (event) => {
-        this.currentUtterance = null;
+        this.cleanup();
         const error = new Error(`TTS Error: ${event.error}`);
         options.onError?.(error);
         reject(error);
@@ -104,11 +184,37 @@ class TTSService {
     });
   }
 
+  private cleanup() {
+    this.currentUtterance = null;
+    this.currentPromise = null;
+    this.currentResolve = null;
+    this.currentReject = null;
+  }
+
   public stop(): void {
     if (this.currentUtterance) {
+      this.isStopped = true;
       this.speechSynthesis.cancel();
-      this.currentUtterance = null;
+      this.cleanup();
     }
+    
+    // Clear the queue when stopping
+    this.ttsQueue = [];
+  }
+
+  public stopAll(): void {
+    // Stop current utterance
+    this.stop();
+    
+    // Clear the queue
+    this.clearQueue();
+    
+    // Cancel any pending speech synthesis
+    this.speechSynthesis.cancel();
+    
+    // Reset all state
+    this.isStopped = false;
+    this.isProcessingQueue = false;
   }
 
   public pause(): void {
@@ -125,6 +231,18 @@ class TTSService {
 
   public isPaused(): boolean {
     return this.speechSynthesis.paused;
+  }
+
+  public getQueueLength(): number {
+    return this.ttsQueue.length;
+  }
+
+  public isQueueProcessing(): boolean {
+    return this.isProcessingQueue;
+  }
+
+  public clearQueue(): void {
+    this.ttsQueue = [];
   }
 
   // Predefined voice presets

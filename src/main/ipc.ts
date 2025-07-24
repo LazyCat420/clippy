@@ -81,6 +81,12 @@ export function setupIpcListeners() {
     getStateManager().store.openInEditor(),
   );
 
+  // Special handler for getting the actual Google API key (not redacted)
+  ipcMain.handle(IpcMessages.STATE_GET_GOOGLE_API_KEY, () => {
+    const settings = getStateManager().store.get("settings");
+    return settings?.googleApiKey || "";
+  });
+
   // Debug
   ipcMain.handle(
     IpcMessages.DEBUG_STATE_GET_FULL,

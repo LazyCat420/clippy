@@ -33,6 +33,7 @@ export type ClippyApi = {
   getState: (key: string) => Promise<any>;
   setState: (key: string, value: any) => Promise<void>;
   openStateInEditor: () => Promise<void>;
+  getGoogleApiKey: () => Promise<string>;
   // Debug
   offDebugStateChanged: () => void;
   onDebugStateChanged: (callback: (state: DebugState) => void) => void;
