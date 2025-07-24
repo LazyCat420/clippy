@@ -1,6 +1,6 @@
 # Clippy
 
-Modded Version of Clippy added internet search features using Google Gemini and ground searching. 
+Modded Version of Clippy added internet search features using Google Gemini and ground searching. Synced the animations with the outputs to make it more interative with clippy. 
 
 [Clippy](https://felixrieseberg.github.io/clippy/) let's you run a variety of large language models (LLMs) locally on your computer while sticking with a user interface of the 1990s. Through Llama.cpp, it supports models in the popular GGUF format, which is to say most publicly available models. It comes with one-click installation support for Google's Gemma3, Meta's Llama 3.2, Microsoft's Phi-4, and Qwen's Qwen3.
 
