@@ -12,7 +12,7 @@ import { useDebugState } from "../contexts/DebugContext";
 import { audioService } from "../services/AudioService";
 import { useAnimation } from "../contexts/AnimationContext";
 import { useBubbleView } from "../contexts/BubbleViewContext";
-import { ANIMATION_TRIGGERS, calculateSimpleDirection } from "../contexts/AnimationContext";
+import { ANIMATION_TRIGGERS } from "../contexts/AnimationContext";
 
 const WAIT_TIME = 6000;
 const CHAT_LOOK_PROBABILITY = 0.3; // 30% chance to look at chat during idle
@@ -33,6 +33,8 @@ export function Clippy({ chatWindowRef }: ClippyProps) {
   const { settings } = useSharedState();
   const { triggerLookAtChat, getChatLookDirection } = useAnimation();
   const { currentView } = useBubbleView();
+
+
   const [animation, setAnimation] = useState<Animation>(EMPTY_ANIMATION);
   const [animationTimeoutId, setAnimationTimeoutId] = useState<
     number | undefined
@@ -41,81 +43,135 @@ export function Clippy({ chatWindowRef }: ClippyProps) {
   // Refs for position tracking
   const clippyRef = useRef<HTMLDivElement>(null);
 
-  // Get current positions (simplified)
-  const getPositions = useCallback(() => {
-    if (!clippyRef.current || !chatWindowRef.current) {
-      return null;
-    }
 
-    const clippyRect = clippyRef.current.getBoundingClientRect();
-    const chatRect = chatWindowRef.current.getBoundingClientRect();
 
-    // Check if elements are actually visible
-    if (clippyRect.width === 0 || clippyRect.height === 0 || 
-        chatRect.width === 0 || chatRect.height === 0) {
-      return null;
-    }
 
-    return {
-      clippy: {
-        x: clippyRect.left + clippyRect.width / 2, // Center point
-        y: clippyRect.top + clippyRect.height / 2,
-      },
-      chat: {
-        x: chatRect.left + chatRect.width / 2, // Center point
-        y: chatRect.top + chatRect.height / 2,
-      },
-    };
-  }, []);
 
-  // Monitor position changes
-  useEffect(() => {
-    if (!isChatWindowOpen || currentView !== "chat") {
-      return;
-    }
-
-    const checkPositions = () => {
-      const positions = getPositions();
-      if (positions) {
-        const direction = calculateSimpleDirection(positions.clippy, positions.chat);
-        console.log(`Position update: direction = ${direction}`);
-      }
-    };
-
-    // Check positions periodically when chat is open
-    const interval = setInterval(checkPositions, 2000); // Check every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [isChatWindowOpen, currentView, getPositions]);
-
-  // Enhanced idle animation that sometimes looks at chat
-  const playEnhancedIdleAnimation = useCallback(() => {
+    // Enhanced idle animation that sometimes looks at chat - EXACT SAME LOGIC AS WORKING TEST
+  const playEnhancedIdleAnimation = useCallback(async () => {
     if (status !== "idle") return;
 
-    const positions = getPositions();
     const shouldLookAtChat = Math.random() < CHAT_LOOK_PROBABILITY && 
-                            positions && 
                             isChatWindowOpen && 
                             currentView === "chat";
 
     if (shouldLookAtChat) {
-      // Look at chat using simple direction system
-      const lookDirection = calculateSimpleDirection(positions.clippy, positions.chat);
-      
-      if (lookDirection) {
-        log(`Clippy looking at chat: ${lookDirection}`, { positions });
-        setAnimation(ANIMATIONS[ANIMATION_TRIGGERS[lookDirection]]);
+      try {
+        console.log("🎯 Idle: Attempting to look at chat...");
         
-        // After looking at chat, return to default and schedule next idle
-        setAnimationTimeoutId(
-          window.setTimeout(() => {
-            setAnimation(ANIMATIONS.Default);
-            setAnimationTimeoutId(
-              window.setTimeout(playEnhancedIdleAnimation, WAIT_TIME),
-            );
-          }, 2000), // Look at chat for 2 seconds
-        );
-        return;
+        // Get all window positions from main process - EXACT SAME AS WORKING TEST
+        const windowPositions = await (window as any).clippy.getWindowPositions();
+        
+        if (windowPositions && windowPositions.length > 0) {
+          console.log(`🎯 Idle: Found ${windowPositions.length} windows`);
+          
+          // Try to identify Clippy and chat windows - EXACT SAME LOGIC AS WORKING TEST
+          const clippyWindow = windowPositions.find((w: any) => 
+            w.title.toLowerCase().includes('clippy') && !w.title.toLowerCase().includes('chat') ||
+            w.width < 200 // Small window likely to be Clippy
+          );
+          
+          const chatWindow = windowPositions.find((w: any) => 
+            w.title.toLowerCase().includes('chat') ||
+            w.width > 400 // Large window likely to be chat
+          );
+          
+          if (clippyWindow && chatWindow) {
+            console.log(`🎯 Idle: Found windows - Clippy: "${clippyWindow.title}", Chat: "${chatWindow.title}"`);
+            
+            // Calculate center points - EXACT SAME AS WORKING TEST
+            const clippyCenter = {
+              x: clippyWindow.x + clippyWindow.width / 2,
+              y: clippyWindow.y + clippyWindow.height / 2
+            };
+            
+            const chatCenter = {
+              x: chatWindow.x + chatWindow.width / 2,
+              y: chatWindow.y + chatWindow.height / 2
+            };
+            
+            // Calculate direction using main process - EXACT SAME AS WORKING TEST
+            const directionResult = await (window as any).clippy.calculateDirection(clippyCenter, chatCenter);
+            
+            if (directionResult.direction) {
+              log(`🎯 Idle: Clippy looking at chat: ${directionResult.direction}`, { 
+                clippyCenter, 
+                chatCenter, 
+                distance: directionResult.distance 
+              });
+              // Use the EXACT SAME animation trigger as the working test
+              setAnimation(ANIMATIONS[ANIMATION_TRIGGERS[directionResult.direction as keyof typeof ANIMATION_TRIGGERS]]);
+              console.log("✅ Animation triggered!");
+              
+              // After looking at chat, return to default and schedule next idle
+              setAnimationTimeoutId(
+                window.setTimeout(() => {
+                  setAnimation(ANIMATIONS.Default);
+                  setAnimationTimeoutId(
+                    window.setTimeout(playEnhancedIdleAnimation, WAIT_TIME),
+                  );
+                }, 2000), // Look at chat for 2 seconds
+              );
+              return;
+            } else {
+              console.log(`🎯 Idle: Chat too far away: ${directionResult.distance}px`);
+            }
+          } else {
+            console.log("🎯 Idle: Could not identify windows, trying fallback...");
+            
+            // Fallback: manually identify based on size and position - EXACT SAME AS WORKING TEST
+            const smallWindow = windowPositions.find((w: any) => w.width < 200);
+            const largeWindow = windowPositions.find((w: any) => w.width > 400);
+            
+            if (smallWindow && largeWindow) {
+              console.log(`🎯 Idle: Fallback - Small: "${smallWindow.title}", Large: "${largeWindow.title}"`);
+              
+              // Calculate center points
+              const clippyCenter = {
+                x: smallWindow.x + smallWindow.width / 2,
+                y: smallWindow.y + smallWindow.height / 2
+              };
+              
+              const chatCenter = {
+                x: largeWindow.x + largeWindow.width / 2,
+                y: largeWindow.y + largeWindow.height / 2
+              };
+              
+              // Calculate direction using main process
+              const directionResult = await (window as any).clippy.calculateDirection(clippyCenter, chatCenter);
+              
+              if (directionResult.direction) {
+                log(`🎯 Idle: Clippy looking at chat (fallback): ${directionResult.direction}`, { 
+                  clippyCenter, 
+                  chatCenter, 
+                  distance: directionResult.distance 
+                });
+                // Use the EXACT SAME animation trigger as the working test
+                setAnimation(ANIMATIONS[ANIMATION_TRIGGERS[directionResult.direction as keyof typeof ANIMATION_TRIGGERS]]);
+                console.log("✅ Animation triggered!");
+                
+                // After looking at chat, return to default and schedule next idle
+                setAnimationTimeoutId(
+                  window.setTimeout(() => {
+                    setAnimation(ANIMATIONS.Default);
+                    setAnimationTimeoutId(
+                      window.setTimeout(playEnhancedIdleAnimation, WAIT_TIME),
+                    );
+                  }, 2000), // Look at chat for 2 seconds
+                );
+                return;
+              } else {
+                console.log(`🎯 Idle: Fallback - Chat too far away: ${directionResult.distance}px`);
+              }
+            } else {
+              console.log("🎯 Idle: Fallback also failed - no suitable windows found");
+            }
+          }
+        } else {
+          console.log("🎯 Idle: No windows found");
+        }
+      } catch (error) {
+        console.error("🎯 Idle: Failed to look at chat:", error);
       }
     }
 
@@ -132,7 +188,7 @@ export function Clippy({ chatWindowRef }: ClippyProps) {
         );
       }, randomIdleAnimation.length),
     );
-  }, [status, getPositions, isChatWindowOpen, currentView, getChatLookDirection, animation]);
+  }, [status, isChatWindowOpen, currentView, getChatLookDirection, animation]);
 
   const playAnimation = useCallback((key: string) => {
     if (ANIMATIONS[key]) {

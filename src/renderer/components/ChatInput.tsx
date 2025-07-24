@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useChat } from "../contexts/ChatContext";
 import { useSharedState } from "../contexts/SharedStateContext";
+import { useAnimation } from "../contexts/AnimationContext";
 import { ttsService } from "../services/TTSService";
 import { clippyApi } from "../clippyApi";
 
@@ -13,12 +14,14 @@ export type ChatInputProps = {
 export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps) {
   const { status } = useChat();
   const { settings } = useSharedState();
+  const { lookAtChat } = useAnimation();
   const [message, setMessage] = useState("");
   const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
   const [ttsQueueLength, setTtsQueueLength] = useState(0);
   const [actualApiKey, setActualApiKey] = useState<string>("");
   const { isModelLoaded } = useChat();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get the actual API key on component mount
   useEffect(() => {
@@ -70,10 +73,39 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
     };
   }, [settings.enableTTS]);
 
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle typing detection - make Clippy look at chat when user starts typing
+  const handleTyping = useCallback(() => {
+    // Clear any existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set a new timeout to trigger looking at chat
+    typingTimeoutRef.current = setTimeout(() => {
+      console.log("🎯 Typing detected - making Clippy look at chat");
+      lookAtChat();
+    }, 500); // Wait 500ms after typing stops to trigger the look
+  }, [lookAtChat]);
+
   const handleSend = useCallback(() => {
     const trimmedMessage = message.trim();
 
     if (trimmedMessage) {
+      // Clear typing timeout when sending
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      
       onSend(trimmedMessage);
       setMessage("");
     }
@@ -151,7 +183,10 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
         rows={1}
         ref={textareaRef}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e) => {
+          setMessage(e.target.value);
+          handleTyping(); // Trigger typing detection
+        }}
         disabled={!isModelLoaded}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}

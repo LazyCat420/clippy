@@ -46,6 +46,7 @@ interface AnimationContextType {
   triggerAnimationForStatus: (status: string) => void;
   triggerLookAtChat: (clippyPos: ClippyPosition, chatPos: ChatPosition) => void;
   getChatLookDirection: (clippyPos: ClippyPosition, chatPos: ChatPosition) => AnimationTrigger | null;
+  lookAtChat: () => Promise<void>;
 }
 
 const AnimationContext = createContext<AnimationContextType | undefined>(undefined);
@@ -698,12 +699,104 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
     }
   }, [triggerAnimation]);
 
+  // Function to look at chat using IPC-based solution - EXACT SAME LOGIC AS WORKING TEST
+  const lookAtChat = useCallback(async () => {
+    try {
+      console.log("🎯 AnimationContext: Attempting to look at chat...");
+      
+      // Get all window positions from main process - EXACT SAME AS WORKING TEST
+      const windowPositions = await (window as any).clippy.getWindowPositions();
+      
+      if (windowPositions && windowPositions.length > 0) {
+        console.log(`🎯 AnimationContext: Found ${windowPositions.length} windows`);
+        
+        // Try to identify Clippy and chat windows - EXACT SAME LOGIC AS WORKING TEST
+        const clippyWindow = windowPositions.find((w: any) => 
+          w.title.toLowerCase().includes('clippy') && !w.title.toLowerCase().includes('chat') ||
+          w.width < 200 // Small window likely to be Clippy
+        );
+        
+        const chatWindow = windowPositions.find((w: any) => 
+          w.title.toLowerCase().includes('chat') ||
+          w.width > 400 // Large window likely to be chat
+        );
+        
+        if (clippyWindow && chatWindow) {
+          console.log(`🎯 AnimationContext: Found windows - Clippy: "${clippyWindow.title}", Chat: "${chatWindow.title}"`);
+          
+          // Calculate center points - EXACT SAME AS WORKING TEST
+          const clippyCenter = {
+            x: clippyWindow.x + clippyWindow.width / 2,
+            y: clippyWindow.y + clippyWindow.height / 2
+          };
+          
+          const chatCenter = {
+            x: chatWindow.x + chatWindow.width / 2,
+            y: chatWindow.y + chatWindow.height / 2
+          };
+          
+          // Calculate direction using main process - EXACT SAME AS WORKING TEST
+          const directionResult = await (window as any).clippy.calculateDirection(clippyCenter, chatCenter);
+          
+          if (directionResult.direction) {
+            console.log(`🎯 AnimationContext: Clippy looking at chat: ${directionResult.direction}`);
+            // Use the EXACT SAME animation trigger as the working test
+            triggerAnimation(directionResult.direction);
+            console.log("✅ Animation triggered!");
+          } else {
+            console.log(`🎯 AnimationContext: Chat too far away: ${directionResult.distance}px`);
+          }
+        } else {
+          console.log("🎯 AnimationContext: Could not identify windows, trying fallback...");
+          
+          // Fallback: manually identify based on size and position - EXACT SAME AS WORKING TEST
+          const smallWindow = windowPositions.find((w: any) => w.width < 200);
+          const largeWindow = windowPositions.find((w: any) => w.width > 400);
+          
+          if (smallWindow && largeWindow) {
+            console.log(`🎯 AnimationContext: Fallback - Small: "${smallWindow.title}", Large: "${largeWindow.title}"`);
+            
+            // Calculate center points
+            const clippyCenter = {
+              x: smallWindow.x + smallWindow.width / 2,
+              y: smallWindow.y + smallWindow.height / 2
+            };
+            
+            const chatCenter = {
+              x: largeWindow.x + largeWindow.width / 2,
+              y: largeWindow.y + largeWindow.height / 2
+            };
+            
+            // Calculate direction using main process
+            const directionResult = await (window as any).clippy.calculateDirection(clippyCenter, chatCenter);
+            
+            if (directionResult.direction) {
+              console.log(`🎯 AnimationContext: Clippy looking at chat (fallback): ${directionResult.direction}`);
+              // Use the EXACT SAME animation trigger as the working test
+              triggerAnimation(directionResult.direction);
+              console.log("✅ Animation triggered!");
+            } else {
+              console.log(`🎯 AnimationContext: Fallback - Chat too far away: ${directionResult.distance}px`);
+            }
+          } else {
+            console.log("🎯 AnimationContext: Fallback also failed - no suitable windows found");
+          }
+        }
+      } else {
+        console.log("🎯 AnimationContext: No windows found");
+      }
+    } catch (error) {
+      console.error("🎯 AnimationContext: Failed to look at chat:", error);
+    }
+  }, [triggerAnimation]);
+
   const value: AnimationContextType = {
     triggerAnimation,
     triggerAnimationForContent,
     triggerAnimationForStatus,
     triggerLookAtChat,
-    getChatLookDirection
+    getChatLookDirection,
+    lookAtChat
   };
 
   return (
