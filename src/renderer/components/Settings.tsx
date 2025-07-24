@@ -9,8 +9,9 @@ import { SettingsAppearance } from "./SettingsAppearance";
 import { SettingsAbout } from "./SettingsAbout";
 import { SettingsParameters } from "./SettingsParameters";
 import { SettingsGoogle } from "./SettingsGoogle";
+import { SettingsAudio } from "./SettingsAudio";
 
-export type SettingsTab = "appearance" | "model" | "parameters" | "google" | "advanced" | "about";
+export type SettingsTab = "appearance" | "model" | "parameters" | "google" | "audio" | "advanced" | "about";
 
 export type SettingsProps = {
   onClose: () => void;
@@ -35,6 +36,7 @@ export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
     { label: "Model", key: "model", content: <SettingsModel /> },
     { label: "Parameters", key: "parameters", content: <SettingsParameters /> },
     { label: "Google", key: "google", content: <SettingsGoogle /> },
+    { label: "Audio", key: "audio", content: <SettingsAudio /> },
     { label: "Advanced", key: "advanced", content: <SettingsAdvanced /> },
     { label: "About", key: "about", content: <SettingsAbout /> },
   ];
@@ -70,6 +72,7 @@ function bubbleViewToSettingsTab(view: BubbleView): SettingsTab {
     "model",
     "parameters",
     "google",
+    "audio",
     "advanced",
     "about",
   ] as const;

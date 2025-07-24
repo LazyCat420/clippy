@@ -6,8 +6,10 @@ import { GroundingSearchResult } from "./GroundingSearchResult";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
+import { useAnimation } from "../contexts/AnimationContext";
 import { electronAi, clippyApi } from "../clippyApi";
 import { useSharedState } from "../contexts/SharedStateContext";
+import { ttsService } from "../services/TTSService";
 
 export type ChatProps = {
   style?: React.CSSProperties;
@@ -17,6 +19,7 @@ export function Chat({ style }: ChatProps) {
   const { setAnimationKey, setStatus, status, messages, addMessage } =
     useChat();
   const { settings } = useSharedState();
+  const { triggerAnimationForContent, triggerAnimationForStatus } = useAnimation();
   const [streamingMessageContent, setStreamingMessageContent] =
     useState<string>("");
   const [lastRequestUUID, setLastRequestUUID] = useState<string>(
@@ -62,6 +65,9 @@ export function Chat({ style }: ChatProps) {
     await addMessage(userMessage);
     setStreamingMessageContent("");
     setStatus("thinking");
+    
+    // Trigger smart animation based on user message content
+    triggerAnimationForContent(message);
 
     try {
       // Check if grounding search is enabled and we have a valid API key
@@ -116,7 +122,16 @@ export function Chat({ style }: ChatProps) {
             ),
           };
 
+          // Trigger animation based on response content
+          triggerAnimationForContent(groundingResponse.content);
           addMessage(assistantMessage);
+          
+          // Speak the response using TTS
+          if (settings.enableTTS) {
+            ttsService.speakWithAnimation(groundingResponse.content, "explain").catch(error => {
+              console.warn("TTS failed:", error);
+            });
+          }
         } catch (groundingError) {
           setIsGroundingSearching(false);
           console.error("Grounding search failed, falling back to local model:", groundingError);
@@ -129,6 +144,9 @@ export function Chat({ style }: ChatProps) {
             createdAt: Date.now(),
           };
           addMessage(errorMessage);
+          
+          // Trigger alert animation for error
+          triggerAnimationForStatus("error");
           
           // Fallback to local model if grounding search fails
           const requestUUID = crypto.randomUUID();
@@ -221,7 +239,16 @@ export function Chat({ style }: ChatProps) {
           createdAt: Date.now(),
         };
 
+        // Trigger animation based on response content
+        triggerAnimationForContent(filteredContent);
         addMessage(assistantMessage);
+        
+        // Speak the response using TTS
+        if (settings.enableTTS) {
+          ttsService.speakWithAnimation(filteredContent, "explain").catch(error => {
+            console.warn("TTS failed:", error);
+          });
+        }
       }
     } catch (error) {
       console.error(error);
@@ -234,6 +261,8 @@ export function Chat({ style }: ChatProps) {
         createdAt: Date.now(),
       };
       
+      // Trigger alert animation for error
+      triggerAnimationForStatus("error");
       addMessage(errorMessage);
     } finally {
       setStreamingMessageContent("");

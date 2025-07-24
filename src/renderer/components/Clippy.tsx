@@ -6,8 +6,10 @@ import {
   getRandomIdleAnimation,
 } from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
+import { useSharedState } from "../contexts/SharedStateContext";
 import { log } from "../logging";
 import { useDebugState } from "../contexts/DebugContext";
+import { audioService } from "../services/AudioService";
 
 const WAIT_TIME = 6000;
 
@@ -20,6 +22,7 @@ export function Clippy() {
     isChatWindowOpen,
   } = useChat();
   const { enableDragDebug } = useDebugState();
+  const { settings } = useSharedState();
   const [animation, setAnimation] = useState<Animation>(EMPTY_ANIMATION);
   const [animationTimeoutId, setAnimationTimeoutId] = useState<
     number | undefined
@@ -34,6 +37,15 @@ export function Clippy() {
       }
 
       setAnimation(ANIMATIONS[key]);
+      
+      // Play sound effect for animation if enabled
+      if (settings.enableSoundEffects) {
+        audioService.playAnimationSound(key).catch(error => {
+          // Silently fail if audio is not available
+          console.warn(`Could not play sound for animation ${key}:`, error);
+        });
+      }
+      
       setAnimationTimeoutId(
         window.setTimeout(() => {
           setAnimation(ANIMATIONS.Default);

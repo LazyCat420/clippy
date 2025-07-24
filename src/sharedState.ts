@@ -22,6 +22,13 @@ export interface SettingsState {
   googleApiKey?: string;
   enableGroundingSearch?: boolean;
   groundingModel?: string;
+  // Audio and TTS settings
+  enableTTS?: boolean;
+  enableSoundEffects?: boolean;
+  ttsVoice?: string;
+  ttsRate?: number;
+  ttsPitch?: number;
+  ttsVolume?: number;
 }
 
 export interface SharedState {
@@ -55,6 +62,12 @@ export const DEFAULT_SETTINGS: SettingsState = {
   // Google Gemini Grounding Search defaults
   enableGroundingSearch: false,
   groundingModel: "gemini-2.0-flash",
+  // Audio and TTS defaults
+  enableTTS: false,
+  enableSoundEffects: true,
+  ttsRate: 1.0,
+  ttsPitch: 1.0,
+  ttsVolume: 0.8,
 };
 
 export const EMPTY_SHARED_STATE: SharedState = {

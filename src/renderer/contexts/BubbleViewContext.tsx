@@ -8,6 +8,8 @@ export type BubbleView =
   | "settings-general"
   | "settings-model"
   | "settings-parameters"
+  | "settings-google"
+  | "settings-audio"
   | "settings-advanced"
   | "settings-about";
 
