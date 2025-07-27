@@ -7,22 +7,12 @@ import {
   useCallback,
 } from "react";
 import { Message } from "../components/Message";
-import { clippyApi, electronAi } from "../clippyApi";
+import { clippyApi } from "../clippyApi";
 import { SharedStateContext } from "./SharedStateContext";
-import { areAnyModelsReadyOrDownloading } from "../../helpers/model-helpers";
 import { WelcomeMessageContent } from "../components/WelcomeMessageContent";
 import { ChatRecord, MessageRecord } from "../../types/interfaces";
 import { useDebugState } from "./DebugContext";
 import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
-import { ErrorLoadModelMessageContent } from "../components/ErrorLoadModelMessageContent";
-import { GroundingSearchResult } from "../components/GroundingSearchResult";
-
-import type {
-  LanguageModelPrompt,
-  LanguageModelCreateOptions,
-  LanguageModelPromptRole,
-  LanguageModelPromptType,
-} from "@electron/llm";
 
 type ClippyNamedStatus =
   | "welcome"
@@ -39,7 +29,6 @@ export type ChatContextType = {
   setAnimationKey: (animationKey: string) => void;
   status: ClippyNamedStatus;
   setStatus: (status: ClippyNamedStatus) => void;
-  isModelLoaded: boolean;
   isChatWindowOpen: boolean;
   setIsChatWindowOpen: (isChatWindowOpen: boolean) => void;
   chatRecords: Record<string, ChatRecord>;
@@ -67,25 +56,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   );
   const [animationKey, setAnimationKey] = useState<string>("");
   const [status, setStatus] = useState<ClippyNamedStatus>("welcome");
-  const [isModelLoaded, setIsModelLoaded] = useState(false);
-  const { settings, models } = useContext(SharedStateContext);
+  const { settings } = useContext(SharedStateContext);
   const debug = useDebugState();
   const [isChatWindowOpen, setIsChatWindowOpen] = useState(false);
-  const [hasPerformedStartupCheck, setHasPerformedStartupCheck] =
-    useState(false);
 
   const getSystemPrompt = useCallback(() => {
-    return settings.systemPrompt.replace(
+    return settings.systemPrompt?.replace(
       "[LIST OF ANIMATIONS]",
       ANIMATION_KEYS_BRACKETS.join(", "),
-    );
+    ) || "You are Clippy, a helpful AI assistant.";
   }, [settings.systemPrompt]);
 
   const addMessage = useCallback(
     async (message: Message) => {
       setMessages((prevMessages) => [...prevMessages, message]);
     },
-    [currentChatRecord, messages],
+    [],
   );
 
   const selectChat = useCallback(
@@ -97,233 +83,102 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setMessages(chatWithMessages.messages);
           setCurrentChatRecord(chatWithMessages.chat);
         }
-
-        await loadModel(
-          messagesToInitialPrompts(chatWithMessages?.messages || []),
-        );
       } catch (error) {
-        console.error(error);
+        console.error("Error selecting chat:", error);
       }
     },
-    [currentChatRecord, messages],
+    [],
   );
 
   const startNewChat = useCallback(async () => {
-    // No need if there are no messages, we'll just keep the current chat
-    // and update the timestamps
-    if (messages.length === 0) {
-      setCurrentChatRecord({
-        ...currentChatRecord,
+    try {
+      // Create a new chat record
+      const newChatRecord: ChatRecord = {
+        id: crypto.randomUUID(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
-      });
-
-      return;
-    }
-
-    const newChatRecord = {
-      id: crypto.randomUUID(),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      preview: "",
-    };
-
-    setCurrentChatRecord(newChatRecord);
-    setChatRecords((prevChatRecords) => ({
-      ...prevChatRecords,
-      [newChatRecord.id]: newChatRecord,
-    }));
-    setMessages([]);
-  }, [currentChatRecord, messages]);
-
-  const loadModel = useCallback(
-    async (initialPrompts: LanguageModelPrompt[] = []) => {
-      setIsModelLoaded(false);
-
-      const options: LanguageModelCreateOptions = {
-        modelAlias: settings.selectedModel,
-        systemPrompt: getSystemPrompt(),
-        topK: settings.topK,
-        temperature: settings.temperature,
-        initialPrompts,
+        preview: "",
       };
 
-      console.log("Loading model with options:", options);
+      setCurrentChatRecord(newChatRecord);
+      setMessages([]);
+      setStatus("welcome");
 
-      try {
-        await electronAi.create(options);
-        setIsModelLoaded(true);
-      } catch (error) {
-        console.error(error);
+      // Add welcome message
+      const welcomeMessage: Message = {
+        id: crypto.randomUUID(),
+        content: "Hello! I'm Clippy, your AI assistant. I can help you with questions using Google's grounding search to find real-time information. Just ask me anything!",
+        sender: "clippy",
+        createdAt: Date.now(),
+        children: <WelcomeMessageContent />,
+      };
 
-        addMessage({
-          id: crypto.randomUUID(),
-          children: <ErrorLoadModelMessageContent error={error} />,
-          sender: "clippy",
-          createdAt: Date.now(),
-        });
-      }
-    },
-    [
-      settings.selectedModel,
-      settings.systemPrompt,
-      settings.topK,
-      settings.temperature,
-      messages,
-    ],
-  );
+      setMessages([welcomeMessage]);
+    } catch (error) {
+      console.error("Error starting new chat:", error);
+    }
+  }, []);
 
-  const deleteChat = useCallback(
-    async (chatId: string) => {
+  const deleteChat = useCallback(async (chatId: string) => {
+    try {
       await clippyApi.deleteChat(chatId);
-
-      setChatRecords((prevChatRecords) => {
-        const newChatRecords = { ...prevChatRecords };
-        delete newChatRecords[chatId];
-        return newChatRecords;
+      
+      // Remove from chat records
+      setChatRecords((prev) => {
+        const newRecords = { ...prev };
+        delete newRecords[chatId];
+        return newRecords;
       });
 
+      // If this was the current chat, start a new one
       if (currentChatRecord.id === chatId) {
         await startNewChat();
       }
-    },
-    [currentChatRecord.id],
-  );
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+    }
+  }, [currentChatRecord.id, startNewChat]);
 
   const deleteAllChats = useCallback(async () => {
-    await clippyApi.deleteAllChats();
-
-    setChatRecords({});
-    setMessages([]);
-    startNewChat();
-  }, []);
-
-  // Update the chat record in the database whenever messages change
-  useEffect(() => {
-    const updatedChatRecord = {
-      ...currentChatRecord,
-      updatedAt: Date.now(),
-      preview: currentChatRecord.preview || getPreviewFromMessages(messages),
-    };
-
-    const chatWithMessages = {
-      chat: updatedChatRecord,
-      messages: messages.map(messageRecordFromMessage),
-    };
-
-    setCurrentChatRecord(updatedChatRecord);
-
-    clippyApi.writeChatWithMessages(chatWithMessages).catch((error) => {
-      console.error(error);
-    });
-  }, [messages]);
-
-  // Load the model when the selected model changes
-  // or when the system prompt, topK, or temperature change
-  useEffect(() => {
-    if (debug?.simulateDownload) {
-      setIsModelLoaded(true);
-      return;
-    }
-
-    if (settings.selectedModel) {
-      loadModel();
-    } else if (!settings.selectedModel && isModelLoaded) {
-      electronAi
-        .destroy()
-        .then(() => {
-          setIsModelLoaded(false);
-        })
-        .catch((error) => {
-          console.error(error);
-        });
-    }
-  }, [
-    settings.selectedModel,
-    settings.systemPrompt,
-    settings.topK,
-    settings.temperature,
-  ]);
-
-  // If selectedModel is undefined or not available, set it to the first downloaded model
-  useEffect(() => {
-    if (
-      !settings.selectedModel ||
-      !models[settings.selectedModel] ||
-      !models[settings.selectedModel].downloaded
-    ) {
-      const downloadedModel = Object.values(models).find(
-        (model) => model.downloaded,
-      );
-
-      if (downloadedModel) {
-        clippyApi.setState("settings.selectedModel", downloadedModel.name);
-      }
-    }
-  }, [models]);
-
-  // At app startup, initially load the chat records from the main process
-  useEffect(() => {
-    clippyApi.getChatRecords().then((chatRecords) => {
-      setChatRecords(chatRecords);
-    });
-  }, []);
-
-  // At app startup, check if any models are ready. If none are, kick off a download
-  // for our smallest model and tell the user about it.
-  useEffect(() => {
-    if (
-      messages.length > 0 ||
-      Object.keys(models).length === 0 ||
-      areAnyModelsReadyOrDownloading(models)
-    ) {
-      return;
-    }
-
-    if (hasPerformedStartupCheck) {
-      return;
-    }
-
-    setHasPerformedStartupCheck(true);
-
-    addMessage({
-      id: crypto.randomUUID(),
-      children: <WelcomeMessageContent />,
-      content: "Welcome to Clippy!",
-      sender: "clippy",
-      createdAt: Date.now(),
-    });
-
-    const downloadModelIfNoneReady = async () => {
-      await clippyApi.downloadModelByName("Gemma 3 (1B)");
-
-      setTimeout(async () => {
-        await clippyApi.updateModelState();
-      }, 500);
-    };
-
-    void downloadModelIfNoneReady();
-  }, [models]);
-
-  // Subscribe to the main process's newChat event
-  useEffect(() => {
-    clippyApi.offNewChat();
-    clippyApi.onNewChat(async () => {
+    try {
+      await clippyApi.deleteAllChats();
+      setChatRecords({});
       await startNewChat();
-    });
-
-    return () => {
-      clippyApi.offNewChat();
-    };
+    } catch (error) {
+      console.error("Error deleting all chats:", error);
+    }
   }, [startNewChat]);
 
-  const value = {
-    chatRecords,
-    currentChatRecord,
-    selectChat,
-    deleteChat,
-    deleteAllChats,
-    startNewChat,
+  // Load chat records on mount
+  useEffect(() => {
+    const loadChatRecords = async () => {
+      try {
+        const records = await clippyApi.getChatRecords();
+        setChatRecords(records);
+      } catch (error) {
+        console.error("Error loading chat records:", error);
+      }
+    };
+
+    loadChatRecords();
+  }, []);
+
+  // Start with welcome message
+  useEffect(() => {
+    if (messages.length === 0) {
+      const welcomeMessage: Message = {
+        id: crypto.randomUUID(),
+        content: "Hello! I'm Clippy, your AI assistant. I can help you with questions using Google's grounding search to find real-time information. Just ask me anything!",
+        sender: "clippy",
+        createdAt: Date.now(),
+        children: <WelcomeMessageContent />,
+      };
+
+      setMessages([welcomeMessage]);
+    }
+  }, [messages.length]);
+
+  const value: ChatContextType = {
     messages,
     addMessage,
     setMessages,
@@ -331,9 +186,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setAnimationKey,
     status,
     setStatus,
-    isModelLoaded,
     isChatWindowOpen,
     setIsChatWindowOpen,
+    chatRecords,
+    currentChatRecord,
+    selectChat,
+    startNewChat,
+    deleteChat,
+    deleteAllChats,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
@@ -341,11 +201,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
 export function useChat() {
   const context = useContext(ChatContext);
-
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useChat must be used within a ChatProvider");
   }
-
   return context;
 }
 
@@ -359,25 +217,13 @@ function messageRecordFromMessage(message: Message): MessageRecord {
 }
 
 function getPreviewFromMessages(messages: Message[]): string {
-  if (messages.length === 0) {
-    return "";
+  const lastUserMessage = messages
+    .filter((msg) => msg.sender === "user")
+    .pop();
+
+  if (lastUserMessage) {
+    return lastUserMessage.content.substring(0, 100);
   }
 
-  if (messages[0].sender === "clippy") {
-    return "Welcome to Clippy!";
-  }
-
-  // Remove newlines and limit to 100 characters
-  return messages[0].content.replace(/\n/g, " ").substring(0, 100);
-}
-
-function messagesToInitialPrompts(messages: Message[]): LanguageModelPrompt[] {
-  return messages.map((message) => ({
-    role:
-      message.sender === "clippy"
-        ? ("assistant" as LanguageModelPromptRole)
-        : ("user" as LanguageModelPromptRole),
-    type: "text" as LanguageModelPromptType,
-    content: message.content || "",
-  }));
+  return "New chat";
 }

@@ -1,4 +1,3 @@
-import { ElectronLlmRenderer } from "@electron/llm";
 import { SharedState } from "../sharedState";
 import {
   ChatRecord,
@@ -19,13 +18,7 @@ export interface ClippyApi {
   onSetBubbleView: (callback: (bubbleView: BubbleView) => void) => void;
   offSetBubbleView: () => void;
   popupAppMenu: () => void;
-  // Models
-  updateModelState: () => Promise<void>;
-  downloadModelByName: (name: string) => Promise<void>;
-  removeModelByName: (name: string) => Promise<void>;
-  deleteModelByName: (name: string) => Promise<boolean>;
-  deleteAllModels: () => Promise<boolean>;
-  addModelFromFile: () => Promise<void>;
+  
   // State
   offStateChanged: () => void;
   onStateChanged: (callback: (state: SharedState) => void) => void;
@@ -34,6 +27,7 @@ export interface ClippyApi {
   setState: (key: string, value: any) => Promise<void>;
   openStateInEditor: () => Promise<void>;
   getGoogleApiKey: () => Promise<string>;
+  
   // Debug
   offDebugStateChanged: () => void;
   onDebugStateChanged: (callback: (state: DebugState) => void) => void;
@@ -42,12 +36,15 @@ export interface ClippyApi {
   setDebugState: (key: string, value: any) => Promise<void>;
   openDebugStateInEditor: () => Promise<void>;
   getDebugInfo(): Promise<ClippyDebugInfo>;
+  
   // App
   getVersions: () => Promise<Versions>;
   checkForUpdates: () => Promise<void>;
+  
   // Grounding Search
   performGroundingSearch: (prompt: string, apiKey: string, model: string) => Promise<any>;
   validateApiKey: (apiKey: string) => Promise<boolean>;
+  
   // Chats
   getChatRecords: () => Promise<Record<string, ChatRecord>>;
   getChatWithMessages: (chatId: string) => Promise<ChatWithMessages | null>;
@@ -56,6 +53,7 @@ export interface ClippyApi {
   deleteAllChats: () => Promise<void>;
   onNewChat: (callback: () => void) => void;
   offNewChat: () => void;
+  
   // Clipboard
   clipboardWrite: (data: Data) => Promise<void>;
   
@@ -99,10 +97,8 @@ export interface ClippyApi {
 
 declare global {
   interface Window {
-    electronAi: ElectronLlmRenderer;
     clippy: ClippyApi;
   }
 }
 
 export const clippyApi = window["clippy"];
-export const electronAi = window["electronAi"];

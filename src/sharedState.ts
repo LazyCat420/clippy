@@ -1,4 +1,4 @@
-import { ModelState } from "./models";
+
 
 export type DefaultFont =
   | "Pixelated MS Sans Serif"
@@ -32,7 +32,6 @@ export interface SettingsState {
 }
 
 export interface SharedState {
-  models: ModelState;
   settings: SettingsState;
 }
 
@@ -60,8 +59,8 @@ export const DEFAULT_SETTINGS: SettingsState = {
   defaultFontSize: 12,
   disableAutoUpdate: false,
   // Google Gemini Grounding Search defaults
-  enableGroundingSearch: false,
-  groundingModel: "gemini-2.0-flash",
+  enableGroundingSearch: true, // Always enabled
+  groundingModel: "gemini-2.0-flash-lite", // Use free tier model by default
   // Audio and TTS defaults
   enableTTS: false,
   enableSoundEffects: true,
@@ -71,7 +70,6 @@ export const DEFAULT_SETTINGS: SettingsState = {
 };
 
 export const EMPTY_SHARED_STATE: SharedState = {
-  models: {},
   settings: {
     ...DEFAULT_SETTINGS,
   },

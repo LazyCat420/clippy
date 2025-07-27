@@ -6,15 +6,7 @@ export const IpcMessages = {
   SET_BUBBLE_VIEW: "clippy_set_bubble_view",
   POPUP_APP_MENU: "clippy_popup_app_menu",
 
-  // Model messages
-  DOWNLOAD_MODEL_BY_NAME: "clippy_download_model_by_name",
-  REMOVE_MODEL_BY_NAME: "clippy_remove_model_by_name",
-  DELETE_MODEL_BY_NAME: "clippy_delete_model_by_name",
-  DELETE_ALL_MODELS: "clippy_delete_all_models",
-  ADD_MODEL_FROM_FILE: "clippy_add_model_from_file",
-
   // State messages
-  STATE_UPDATE_MODEL_STATE: "clippy_state_update_model_state",
   STATE_CHANGED: "clippy_state_changed",
   STATE_GET_FULL: "clippy_state_get_full",
   STATE_GET: "clippy_state_get",

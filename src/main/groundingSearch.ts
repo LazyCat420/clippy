@@ -64,6 +64,12 @@ export class GroundingSearchService {
       throw new Error("Invalid API key provided");
     }
 
+    // Validate model
+    const supportedModels = this.getSupportedModels().map(m => m.value);
+    if (!supportedModels.includes(model)) {
+      throw new Error(`Unsupported model: ${model}. Supported models: ${supportedModels.join(', ')}`);
+    }
+
     logger.info(`Performing grounding search with model: ${model}`);
 
     const geminiRequest: GeminiRequest = {
@@ -113,7 +119,20 @@ export class GroundingSearchService {
       if (!response.ok) {
         const errorText = await response.text();
         logger.error(`Google Gemini API error: ${response.status} - ${errorText}`);
-        throw new Error(`Google Gemini API error: ${response.status} - ${errorText}`);
+        
+        // Parse error response for better debugging
+        let errorMessage = `Google Gemini API error: ${response.status}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.error?.message) {
+            errorMessage = errorData.error.message;
+          }
+        } catch (e) {
+          // If we can't parse the error, use the raw text
+          errorMessage = errorText;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -197,37 +216,37 @@ export class GroundingSearchService {
       {
         value: "gemini-2.0-flash",
         label: "Gemini 2.0 Flash",
-        description: "Recommended - High request rates, good performance",
+        description: "Recommended - High request rates, good performance (Free tier available)",
       },
       {
         value: "gemini-2.0-flash-lite",
-        label: "Gemini 2.0 Flash Lite",
-        description: "Fast and efficient for simple queries",
+        label: "Gemini 2.0 Flash Lite", 
+        description: "Fast and efficient for simple queries (Free tier available)",
       },
       {
         value: "gemini-2.5-flash-lite",
         label: "Gemini 2.5 Flash Lite",
-        description: "Latest model with improved capabilities",
+        description: "Latest model with improved capabilities (Free tier available)",
       },
       {
         value: "gemini-2.5-flash",
         label: "Gemini 2.5 Flash",
-        description: "Advanced model with enhanced reasoning",
+        description: "Advanced model with enhanced reasoning (Free tier available)",
       },
       {
         value: "gemini-2.5-pro",
         label: "Gemini 2.5 Pro",
-        description: "Most capable model for complex tasks",
+        description: "Most capable model for complex tasks (Paid tier)",
       },
       {
         value: "gemini-1.5-pro",
         label: "Gemini 1.5 Pro",
-        description: "Powerful model with long context window",
+        description: "Powerful model with long context window (Paid tier)",
       },
       {
         value: "gemini-1.5-flash",
         label: "Gemini 1.5 Flash",
-        description: "Fast and efficient 1.5 model",
+        description: "Fast and efficient 1.5 model (Free tier available)",
       },
     ];
   }

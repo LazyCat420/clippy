@@ -8,10 +8,9 @@ import { clippyApi } from "../clippyApi";
 export type ChatInputProps = {
   onSend: (message: string) => void;
   onAbort: () => void;
-  onToggleGrounding?: () => void;
 };
 
-export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps) {
+export function ChatInput({ onSend, onAbort }: ChatInputProps) {
   const { status } = useChat();
   const { settings } = useSharedState();
   const { lookAtChat } = useAnimation();
@@ -19,7 +18,6 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
   const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
   const [ttsQueueLength, setTtsQueueLength] = useState(0);
   const [actualApiKey, setActualApiKey] = useState<string>("");
-  const { isModelLoaded } = useChat();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -134,10 +132,10 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
   };
 
   useEffect(() => {
-    if (isModelLoaded && textareaRef.current) {
+    if (actualApiKey && textareaRef.current) {
       textareaRef.current.focus();
     }
-  }, [isModelLoaded]);
+  }, [actualApiKey]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -171,11 +169,9 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
     };
   }, [settings.enableTTS]);
 
-  const placeholder = isModelLoaded
-    ? settings.enableGroundingSearch && actualApiKey
-      ? "Type a message, press Enter to send... (🌐 Grounding Search Enabled)"
-      : "Type a message, press Enter to send..."
-    : "This is your chat input, we're just waiting for a model to load...";
+  const placeholder = actualApiKey
+    ? "Type a message, press Enter to send... (🌐 Google Grounding Search Enabled)"
+    : "Add your Google API key in settings to start chatting...";
 
   return (
     <div style={{ display: "flex", alignItems: "flex-end" }}>
@@ -187,7 +183,7 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
           setMessage(e.target.value);
           handleTyping(); // Trigger typing detection
         }}
-        disabled={!isModelLoaded}
+        disabled={!actualApiKey}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         style={{
@@ -220,31 +216,10 @@ export function ChatInput({ onSend, onAbort, onToggleGrounding }: ChatInputProps
         </button>
       )}
       
-      {/* Grounding Search Toggle Button */}
-      {isModelLoaded && onToggleGrounding && (
-        <button
-          onClick={onToggleGrounding}
-          style={{
-            marginRight: "8px",
-            padding: "6px 12px",
-            fontSize: "12px",
-            backgroundColor: settings.enableGroundingSearch && actualApiKey ? "#4CAF50" : "#ccc",
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            minWidth: "60px",
-          }}
-          title={settings.enableGroundingSearch && actualApiKey 
-            ? `Grounding Search ON (${settings.groundingModel || "gemini-2.0-flash"})` 
-            : "Grounding Search OFF"}
-        >
-          🌐 {settings.enableGroundingSearch && actualApiKey ? "ON" : "OFF"}
-        </button>
-      )}
+
       
       <button
-        disabled={!isModelLoaded}
+        disabled={!actualApiKey}
         style={buttonStyle}
         onClick={handleSendOrAbort}
       >

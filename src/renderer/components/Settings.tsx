@@ -1,85 +1,52 @@
-import { useEffect, useState } from "react";
-
-import { TabList } from "./TabList";
-import { BubbleView, useBubbleView } from "../contexts/BubbleViewContext";
-import { SettingsModel } from "./SettingsModel";
-import { BubbleWindowBottomBar } from "./BubbleWindowBottomBar";
-import { SettingsAdvanced } from "./SettingsAdvanced";
+import { useState } from "react";
 import { SettingsAppearance } from "./SettingsAppearance";
-import { SettingsAbout } from "./SettingsAbout";
-import { SettingsParameters } from "./SettingsParameters";
 import { SettingsGoogle } from "./SettingsGoogle";
 import { SettingsAudio } from "./SettingsAudio";
+import { SettingsAdvanced } from "./SettingsAdvanced";
+import { SettingsAbout } from "./SettingsAbout";
 
-export type SettingsTab = "appearance" | "model" | "parameters" | "google" | "audio" | "advanced" | "about";
-
-export type SettingsProps = {
-  onClose: () => void;
-};
-
-export const Settings: React.FC<SettingsProps> = ({ onClose }) => {
-  const { currentView, setCurrentView } = useBubbleView();
-  const [activeTab, setActiveTab] = useState<SettingsTab>(
-    bubbleViewToSettingsTab(currentView),
-  );
-
-  useEffect(() => {
-    const newTab = bubbleViewToSettingsTab(currentView);
-
-    if (newTab !== activeTab) {
-      setActiveTab(newTab);
-    }
-  }, [currentView, activeTab]);
+export const Settings: React.FC = () => {
+  const [activeTab, setActiveTab] = useState("appearance");
 
   const tabs = [
-    { label: "Appearance", key: "appearance", content: <SettingsAppearance /> },
-    { label: "Model", key: "model", content: <SettingsModel /> },
-    { label: "Parameters", key: "parameters", content: <SettingsParameters /> },
-    { label: "Google", key: "google", content: <SettingsGoogle /> },
-    { label: "Audio", key: "audio", content: <SettingsAudio /> },
-    { label: "Advanced", key: "advanced", content: <SettingsAdvanced /> },
-    { label: "About", key: "about", content: <SettingsAbout /> },
+    { id: "appearance", label: "Appearance", component: SettingsAppearance },
+    { id: "google", label: "Google", component: SettingsGoogle },
+    { id: "audio", label: "Audio", component: SettingsAudio },
+    { id: "advanced", label: "Advanced", component: SettingsAdvanced },
+    { id: "about", label: "About", component: SettingsAbout },
   ];
 
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || SettingsAppearance;
+
   return (
-    <>
-      <TabList
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={(tab) => setCurrentView(`settings-${tab}` as BubbleView)}
-      />
-      <BubbleWindowBottomBar>
-        <button onClick={onClose}>Back to Chat</button>
-      </BubbleWindowBottomBar>
-    </>
+    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
+      <h1 style={{ marginBottom: "20px", fontSize: "24px", fontWeight: "bold" }}>
+        Clippy Settings
+      </h1>
+
+      <div style={{ marginBottom: "20px" }}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: "8px 16px",
+              marginRight: "8px",
+              border: "1px solid #ccc",
+              backgroundColor: activeTab === tab.id ? "#0078d4" : "#f0f0f0",
+              color: activeTab === tab.id ? "white" : "black",
+              cursor: "pointer",
+              borderRadius: "4px",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ border: "1px solid #ccc", padding: "20px", borderRadius: "4px" }}>
+        <ActiveComponent />
+      </div>
+    </div>
   );
 };
-
-/**
- * Converts a BubbleView to a SettingsTab.
- *
- * @param view - The BubbleView to convert.
- * @returns The SettingsTab.
- */
-function bubbleViewToSettingsTab(view: BubbleView): SettingsTab {
-  if (!view || !view.includes("settings")) {
-    return "appearance";
-  }
-
-  const settingsTab = view.replace(/settings-?/, "");
-  const settingsTabs = [
-    "appearance",
-    "model",
-    "parameters",
-    "google",
-    "audio",
-    "advanced",
-    "about",
-  ] as const;
-
-  if (settingsTabs.includes(settingsTab as SettingsTab)) {
-    return settingsTab as SettingsTab;
-  }
-
-  return "appearance";
-}

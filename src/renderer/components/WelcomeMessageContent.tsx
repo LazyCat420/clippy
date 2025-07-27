@@ -1,18 +1,12 @@
 import React from "react";
 import { useBubbleView } from "../contexts/BubbleViewContext";
 import { useSharedState } from "../contexts/SharedStateContext";
-import { Progress } from "./Progress";
-import { isModelDownloading, isModelReady } from "../../helpers/model-helpers";
-import { prettyDownloadSpeed } from "../helpers/convert-download-speed";
 
 export const WelcomeMessageContent: React.FC = () => {
   const { setCurrentView } = useBubbleView();
-  const { models } = useSharedState();
+  const { settings } = useSharedState();
 
-  // Find if any model is currently downloading
-  const downloadingModel = Object.values(models || {}).find(isModelDownloading);
-  // Check if any model is ready
-  const readyModel = Object.values(models || {}).find(isModelReady);
+  const hasApiKey = settings.googleApiKey && settings.googleApiKey.length > 0;
 
   return (
     <div>
@@ -26,46 +20,49 @@ export const WelcomeMessageContent: React.FC = () => {
         art or satire.
       </p>
       <p>
-        This version of Clippy can run a Large Language Model (LLM) locally, so
-        that you can chat with it offline.
-      </p>
-      <p>
-        It supports a variety of models, including Google's Gemma3, Meta's
-        Llama3, or Microsoft's Phi-4 Mini. We've already started downloading the
-        smallest model for you in the background. You can choose a bigger, more
-        powerful model in the settings.
+        This version of Clippy uses Google's Gemini AI with grounding search to
+        provide real-time, up-to-date information from the web. You can ask me
+        anything and I'll search for the latest information to help you!
       </p>
       <p>
         By the way, you can open or close this chat window by clicking right on
         Clippy's head.
       </p>
 
-      {downloadingModel && (
+      {!hasApiKey ? (
         <div style={{ marginTop: "15px", marginBottom: "15px" }}>
-          <p>
-            Downloading {downloadingModel.name}... (
-            {prettyDownloadSpeed(
-              downloadingModel.downloadState?.currentBytesPerSecond || 0,
-            )}
-            /s)
+          <p style={{ color: "#ff6b35", fontWeight: "bold" }}>
+            ⚠️ Google API Key Required
           </p>
-          <Progress
-            progress={downloadingModel.downloadState?.percentComplete || 0}
-          />
+          <p>
+            To start chatting with Clippy, you need to add your Google API key in the settings.
+            Get your free API key from{" "}
+            <a
+              href="https://makersuite.google.com/app/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#0066cc" }}
+            >
+              Google AI Studio
+            </a>
+          </p>
+          <button onClick={() => setCurrentView("settings-google")}>
+            Add Google API Key
+          </button>
         </div>
-      )}
-
-      {!downloadingModel && readyModel && (
+      ) : (
         <div style={{ marginTop: "15px", marginBottom: "15px" }}>
           <p style={{ color: "green", fontWeight: "bold" }}>
-            ✓ {readyModel.name} is ready! You can now start chatting with
-            Clippy.
+            ✓ Ready to chat! Google grounding search is enabled.
+          </p>
+          <p>
+            Current model: <strong>{settings.groundingModel || "gemini-2.0-flash-lite"}</strong>
           </p>
         </div>
       )}
 
-      <button onClick={() => setCurrentView("settings-model")}>
-        Open Model Settings
+      <button onClick={() => setCurrentView("settings-google")}>
+        Google Settings
       </button>
     </div>
   );

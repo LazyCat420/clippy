@@ -638,7 +638,6 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         
       // Creative states
       case "designing":
-      case "creating":
       case "artistic":
         triggerAnimation("getArtsy");
         break;

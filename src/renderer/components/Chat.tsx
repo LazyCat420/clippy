@@ -7,7 +7,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { ANIMATION_KEYS_BRACKETS } from "../clippy-animation-helpers";
 import { useChat } from "../contexts/ChatContext";
 import { useAnimation } from "../contexts/AnimationContext";
-import { electronAi, clippyApi } from "../clippyApi";
+import { clippyApi } from "../clippyApi";
 import { useSharedState } from "../contexts/SharedStateContext";
 import { ttsService } from "../services/TTSService";
 import { ANIMATION_TRIGGERS } from "../contexts/AnimationContext";
@@ -303,9 +303,10 @@ Choose the most appropriate animation and respond:`;
       // Cleanup any ongoing requests
       if (lastRequestUUID) {
         try {
-          electronAi.abortRequest(lastRequestUUID);
+          // No local model to abort - grounding search handles its own cancellation
+          console.log("Cleanup: grounding search handles its own cancellation");
         } catch (error) {
-          console.error("Error aborting request on cleanup:", error);
+          console.error("Error during cleanup:", error);
         }
       }
     };
@@ -317,25 +318,18 @@ Choose the most appropriate animation and respond:`;
       ttsService.stopAll();
     }
     
-    // Abort AI request if there's one active
-    if (lastRequestUUID) {
-      window.electronAi.abortRequest(lastRequestUUID);
-    }
+    // Grounding search handles its own cancellation
+    console.log("Abort requested - grounding search will handle cancellation");
     
     setStatus("idle");
     setStreamingMessageContent("");
     setIsGroundingSearching(false);
   };
 
-  const handleToggleGrounding = () => {
-    const newValue = !settings.enableGroundingSearch;
-    clippyApi.setState("settings.enableGroundingSearch", newValue);
-  };
+
 
   const handleSendMessage = async (message: string) => {
-    if (status !== "idle") {
-      return;
-    }
+    if (!message.trim()) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -344,23 +338,20 @@ Choose the most appropriate animation and respond:`;
       createdAt: Date.now(),
     };
 
-    await addMessage(userMessage);
+    addMessage(userMessage);
     setStreamingMessageContent("");
     setStatus("thinking");
-    
+
     // Don't trigger animation here - let the LLM choose the appropriate animation
 
     try {
       // Get the actual API key (not redacted)
       const actualApiKey = await clippyApi.getGoogleApiKey();
       
-      // Check if grounding search is enabled and we have a valid API key
-      const shouldUseGroundingSearch = 
-        settings.enableGroundingSearch && 
-        actualApiKey && 
-        actualApiKey.length > 0;
+      // Check if we have a valid API key (grounding search is always enabled)
+      const hasValidApiKey = actualApiKey && actualApiKey.length > 0;
 
-      if (shouldUseGroundingSearch) {
+      if (hasValidApiKey) {
         // Use grounding search
         setStatus("responding");
         setIsGroundingSearching(true);
@@ -431,208 +422,80 @@ User's current question: ${message}`;
             ),
           };
 
-                  // Extract animation from the response
-        const { text: responseText, animationKey: responseAnimation } = filterMessageContent(groundingResponse.content);
-        
-        console.log(`🎭 Grounding Search - Raw response: "${groundingResponse.content.substring(0, 100)}..."`);
-        console.log(`🎭 Grounding Search - Extracted text: "${responseText.substring(0, 100)}..."`);
-        console.log(`🎭 Grounding Search - Extracted animation: "${responseAnimation}"`);
-        
-        // Hybrid animation selection: LLM choice + hardcoded fallback
-        let selectedAnimation = responseAnimation;
-        
-        if (!selectedAnimation) {
-          // Try hardcoded fallback based on user input
-          selectedAnimation = getSmartAnimationForUserInput(message);
-          console.log(`🎭 LLM didn't select animation, using hardcoded fallback: ${selectedAnimation}`);
-        } else {
-          console.log(`🎭 Using LLM-selected animation: ${selectedAnimation}`);
-        }
-        
-        if (selectedAnimation) {
-          // Use direct animation trigger
-          triggerAnimation(selectedAnimation as any);
-        } else {
-          console.log(`🎭 No animation found, using default`);
-          triggerAnimation("default");
-        }
+          // Extract animation from the response
+          const { text: responseText, animationKey: responseAnimation } = filterMessageContent(groundingResponse.content);
           
-          // Update the message with the filtered text
-          assistantMessage.content = responseText;
-          addMessage(assistantMessage);
+          console.log(`🎭 Grounding Search - Raw response: "${groundingResponse.content.substring(0, 100)}..."`);
+          console.log(`🎭 Grounding Search - Extracted text: "${responseText.substring(0, 100)}..."`);
+          console.log(`🎭 Grounding Search - Extracted animation: "${responseAnimation}"`);
           
-          // Speak the response using TTS with the selected animation
-          if (settings.enableTTS) {
-            ttsService.speakWithAnimation(responseText, responseAnimation || "explain").catch(error => {
-              console.warn("TTS failed:", error);
-            });
+          // Hybrid animation selection: LLM choice + hardcoded fallback
+          let selectedAnimation = responseAnimation;
+          
+          // Fallback animations based on content analysis
+          if (!selectedAnimation) {
+            const lowerContent = groundingResponse.content.toLowerCase();
+            if (lowerContent.includes("error") || lowerContent.includes("sorry") || lowerContent.includes("cannot")) {
+              selectedAnimation = "explain";
+            } else if (lowerContent.includes("great") || lowerContent.includes("excellent") || lowerContent.includes("perfect")) {
+              selectedAnimation = "congratulate";
+            } else if (lowerContent.includes("search") || lowerContent.includes("found") || lowerContent.includes("according")) {
+              selectedAnimation = "searching";
+            } else {
+              selectedAnimation = "explain"; // Default for grounding search
+            }
           }
-        } catch (groundingError) {
-          setIsGroundingSearching(false);
-          console.error("Grounding search failed, falling back to local model:", groundingError);
           
-          // Show error message to user
-          const errorMessage: Message = {
-            id: crypto.randomUUID(),
-            content: `🌐 Grounding search failed: ${groundingError instanceof Error ? groundingError.message : 'Unknown error'}. Falling back to local model...`,
-            sender: "clippy",
-            createdAt: Date.now(),
-          };
+          setAnimationKey(selectedAnimation);
+          addMessage(assistantMessage);
+          setStreamingMessageContent("");
+          setIsGroundingSearching(false);
+          setStatus("idle");
+          
+                          } catch (groundingError) {
+                    setIsGroundingSearching(false);
+                    console.error("Grounding search failed:", groundingError);
+                    
+                    // Show error message to user
+                    const errorMessage: Message = {
+                      id: crypto.randomUUID(),
+                      content: `🌐 Google grounding search failed: ${groundingError instanceof Error ? groundingError.message : 'Unknown error'}. Please check your Google API key and internet connection.`,
+                      sender: "clippy",
+                      createdAt: Date.now(),
+                    };
           addMessage(errorMessage);
           
           // Trigger alert animation for error
           triggerAnimationForStatus("error");
-          
-          // Fallback to local model if grounding search fails
-          const requestUUID = crypto.randomUUID();
-          setLastRequestUUID(requestUUID);
-
-          // Use enhanced prompt with animation selection
-          const enhancedPrompt = await createEnhancedPrompt(message);
-          const response = await window.electronAi.promptStreaming(enhancedPrompt, {
-            requestUUID,
-          });
-
-          let fullContent = "";
-          let filteredContent = "";
-          let hasSetAnimationKey = false;
-
-          for await (const chunk of response) {
-            if (fullContent === "") {
-              setStatus("responding");
-            }
-
-            if (!hasSetAnimationKey) {
-              const { text, animationKey } = filterMessageContent(
-                fullContent + chunk,
-              );
-
-              filteredContent = text;
-              fullContent = fullContent + chunk;
-
-              if (animationKey) {
-                setAnimationKey(animationKey);
-                hasSetAnimationKey = true;
-              }
-            } else {
-              filteredContent += chunk;
-            }
-
-            setStreamingMessageContent(filteredContent);
-          }
-
-          const assistantMessage: Message = {
-            id: crypto.randomUUID(),
-            content: filteredContent,
-            sender: "clippy",
-            createdAt: Date.now(),
-          };
-
-          addMessage(assistantMessage);
+          setStatus("idle");
         }
       } else {
-        // Use local model
-        const requestUUID = crypto.randomUUID();
-        setLastRequestUUID(requestUUID);
-
-        // Use enhanced prompt with animation selection
-        const enhancedPrompt = await createEnhancedPrompt(message);
-        const response = await window.electronAi.promptStreaming(enhancedPrompt, {
-          requestUUID,
-        });
-
-        let fullContent = "";
-        let filteredContent = "";
-        let hasSetAnimationKey = false;
-
-        for await (const chunk of response) {
-          if (fullContent === "") {
-            setStatus("responding");
-          }
-
-          if (!hasSetAnimationKey) {
-            const { text, animationKey } = filterMessageContent(
-              fullContent + chunk,
-            );
-
-            filteredContent = text;
-            fullContent = fullContent + chunk;
-
-            if (animationKey) {
-              setAnimationKey(animationKey);
-              hasSetAnimationKey = true;
-            }
-          } else {
-            filteredContent += chunk;
-          }
-
-          setStreamingMessageContent(filteredContent);
-        }
-
-        // Once streaming is complete, add the full message to the messages array
-        // and clear the streaming message
-        const assistantMessage: Message = {
+        // No API key available
+        const errorMessage: Message = {
           id: crypto.randomUUID(),
-          content: filteredContent,
+          content: "🌐 Google API key required. Please add your Google API key in Settings → Google to start chatting with Clippy. Get your free API key from Google AI Studio.",
           sender: "clippy",
           createdAt: Date.now(),
         };
-
-        // Extract animation from the final content
-        const { text: responseText, animationKey: responseAnimation } = filterMessageContent(filteredContent);
+        addMessage(errorMessage);
         
-        console.log(`🎭 Local Model - Raw response: "${filteredContent.substring(0, 100)}..."`);
-        console.log(`🎭 Local Model - Extracted text: "${responseText.substring(0, 100)}..."`);
-        console.log(`🎭 Local Model - Extracted animation: "${responseAnimation}"`);
-        
-        // Hybrid animation selection: LLM choice + hardcoded fallback
-        let selectedAnimation = responseAnimation;
-        
-        if (!selectedAnimation) {
-          // Try hardcoded fallback based on user input
-          selectedAnimation = getSmartAnimationForUserInput(message);
-          console.log(`🎭 LLM didn't select animation, using hardcoded fallback: ${selectedAnimation}`);
-        } else {
-          console.log(`🎭 Using LLM-selected animation: ${selectedAnimation}`);
-        }
-        
-        if (selectedAnimation) {
-          // Use direct animation trigger
-          triggerAnimation(selectedAnimation as any);
-        } else {
-          console.log(`🎭 No animation found, using default`);
-          triggerAnimation("default");
-        }
-        
-        // Update the message with the filtered text
-        assistantMessage.content = responseText;
-        addMessage(assistantMessage);
-        
-        // Speak the response using TTS with the selected animation
-        if (settings.enableTTS) {
-          ttsService.speakWithAnimation(responseText, responseAnimation || "explain").catch(error => {
-            console.warn("TTS failed:", error);
-          });
-        }
+        // Trigger alert animation for error
+        triggerAnimationForStatus("error");
+        setStatus("idle");
       }
     } catch (error) {
-      console.error(error);
+      console.error("Error in handleSendMessage:", error);
       
-      // Add error message
       const errorMessage: Message = {
         id: crypto.randomUUID(),
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+        content: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
         sender: "clippy",
         createdAt: Date.now(),
       };
-      
-      // Trigger alert animation for error
-      triggerAnimationForStatus("error");
       addMessage(errorMessage);
-    } finally {
-      setStreamingMessageContent("");
+      
+      triggerAnimationForStatus("error");
       setStatus("idle");
-      setIsGroundingSearching(false);
     }
   };
 
@@ -680,7 +543,6 @@ User's current question: ${message}`;
         <ChatInput 
           onSend={handleSendMessage} 
           onAbort={handleAbortMessage} 
-          onToggleGrounding={handleToggleGrounding}
         />
       </div>
     </ErrorBoundary>
